@@ -191,6 +191,7 @@ jobs:
 
       - name: Install wheel
         run: pip install cryptography --no-index -f .
+        
       - name: Test wheel
         run: |
           export LD_LIBRARY_PATH="/openssl/lib:$LD_LIBRARY_PATH"
@@ -199,7 +200,7 @@ jobs:
       - uses: actions/upload-artifact@v4.4.0
         with:
           name: "cryptography-ppc64le"
-          path: *.whl
+          path: .
 
 
   macos:

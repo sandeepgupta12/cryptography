@@ -148,8 +148,13 @@ jobs:
   ppc64le:
     runs-on: ["self-hosted", "ppc64le", "linux"]
     container:
-      image: ppc64le/python:3.12-slim-bullseye
-    name: ppc64le-wheel
+      image: ppc64le/python:${{ matrix.PYTHON.VERSION }}-slim-bullseye
+    name: "ppc64le-wheel for python-${{ matrix.PYTHON.VERSION }}"
+    strategy:
+      matrix:
+        PYTHON:
+          - VERSION: "3.12"
+        
     steps:
       - name: Clean workspace
         run: rm -rf openssl
@@ -166,8 +171,8 @@ jobs:
       - name: Install setup tools
         run: |
           pip install --upgrade pip
-          pip install -U setuptools
-          pip install -U wheel pip
+          pip install -U setuptools wheel
+          
       - name: Install OpenSSL
         run: |
           git clone https://github.com/openssl/openssl
@@ -197,10 +202,17 @@ jobs:
           export LD_LIBRARY_PATH="/openssl/lib:$LD_LIBRARY_PATH"
           python -c "from cryptography.hazmat.backends.openssl.backend import backend; print('Loaded: ' + backend.openssl_version_text()); print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"
       
+      - name: Auditwheel repair
+        run: |
+          auditwheel repair --plat manylinux2014_ppc64le wheelhouse/cryptography*.whl -w wheelhouse/
+    
+      - name: Unzip wheel
+        run: |
+          unzip wheelhouse/*.whl -d execstack.check
       - uses: actions/upload-artifact@v4.4.0
         with:
           name: "cryptography-ppc64le"
-          path: .
+          path: wheelhouse/
 
 
   macos:

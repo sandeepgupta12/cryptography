@@ -171,7 +171,7 @@ jobs:
       - name: Install setup tools
         run: |
           pip install --upgrade pip
-          pip install -U setuptools wheel
+          pip install -U setuptools wheel auditwheel
           
       - name: Install OpenSSL
         run: |

@@ -171,7 +171,7 @@ jobs:
       - name: Install setup tools
         run: |
           pip install --upgrade pip
-          pip install -U setuptools wheel auditwheel
+          pip install -U setuptools wheel
           
       - name: Install OpenSSL
         run: |
@@ -201,10 +201,6 @@ jobs:
         run: |
           export LD_LIBRARY_PATH="/openssl/lib:$LD_LIBRARY_PATH"
           python -c "from cryptography.hazmat.backends.openssl.backend import backend; print('Loaded: ' + backend.openssl_version_text()); print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"
-      
-      - name: Auditwheel repair
-        run: |
-          auditwheel repair --plat manylinux2014_ppc64le wheelhouse/cryptography*.whl -w wheelhouse/
     
       - name: Unzip wheel
         run: |

@@ -179,28 +179,20 @@ jobs:
           make -j"$(nproc)"
           make install_sw install_ssldirs
           cd ..
-
-      - name: Set LD_LIBRARY_PATH
-        run: echo "export LD_LIBRARY_PATH=/openssl/lib:$LD_LIBRARY_PATH" >> ~/.bashrc
-        shell: bash
-
+      
       - name: Build Wheel
-        run: |
-          export LD_LIBRARY_PATH="/openssl/lib:$LD_LIBRARY_PATH"
-          OPENSSL_DIR="/openssl" \
-          PATH="$HOME/.cargo/bin:$PATH" pip wheel --no-cache-dir --no-binary cryptography cryptography
+        run: OPENSSL_DIR="/openssl" PATH="$HOME/.cargo/bin:$PATH" pip wheel --no-cache-dir --no-binary cryptography cryptography
 
       - name: Install wheel
         run: pip install cryptography --no-index -f .
       - name: Test wheel
         run: |
-          export LD_LIBRARY_PATH="/openssl/lib:$LD_LIBRARY_PATH"
           python -c "from cryptography.hazmat.backends.openssl.backend import backend; print('Loaded: ' + backend.openssl_version_text()); print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"
       
       - uses: actions/upload-artifact@v4.4.0
         with:
           name: "cryptography-ppc64le"
-          path: *.whl
+          path: .
 
 
   macos:

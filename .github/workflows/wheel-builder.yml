@@ -192,10 +192,10 @@ jobs:
       - name: Build Wheel
         run: |
           export LD_LIBRARY_PATH="/openssl/lib:$LD_LIBRARY_PATH"
-          OPENSSL_DIR="/openssl" PATH="$HOME/.cargo/bin:$PATH" pip wheel --no-cache-dir --no-binary cryptography cryptography
+          OPENSSL_DIR="/openssl" PATH="$HOME/.cargo/bin:$PATH" pip wheel --no-cache-dir --no-binary cryptography cryptography -w wheelhouse/
 
       - name: Install wheel
-        run: pip install cryptography --no-index -f .
+        run: pip install cryptography --no-index -f wheelhouse/
         
       - name: Test wheel
         run: |

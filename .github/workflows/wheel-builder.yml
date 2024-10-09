@@ -201,6 +201,7 @@ jobs:
       
       - name: Move Cryptography Wheel
         run: cp -f tmpwheelhouse/cryptography*.whl wheelhouse/
+      - run: pip install --require-hashes -r $BUILD_REQUIREMENTS_PATH
       - name: Install wheel
         run: pip install cryptography --no-index -f wheelhouse/
         

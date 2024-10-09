@@ -171,7 +171,7 @@ jobs:
       - name: Install setup tools
         run: |
           pip install --upgrade pip
-          pip install -U setuptools wheel cffi pycparser
+          pip install -U setuptools wheel
           
       - name: Install OpenSSL
         run: |
@@ -188,12 +188,13 @@ jobs:
       - name: Set LD_LIBRARY_PATH
         run: echo "export LD_LIBRARY_PATH=/openssl/lib:$LD_LIBRARY_PATH" >> ~/.bashrc
         shell: bash
-
+      - run: mkdir tmpwheelhouse
       - name: Build Wheel
         run: |
           export LD_LIBRARY_PATH="/openssl/lib:$LD_LIBRARY_PATH"
-          OPENSSL_DIR="/openssl" PATH="$HOME/.cargo/bin:$PATH" pip wheel --no-cache-dir --no-binary cryptography cryptography -w wheelhouse/
-
+          OPENSSL_DIR="/openssl" PATH="$HOME/.cargo/bin:$PATH" pip wheel --no-cache-dir --no-binary cryptography cryptography -w tmpwheelhouse/
+      - name: Move Cryptography Wheel
+        run: cp -f tmpwheelhouse/cryptography*.whl wheelhouse/
       - name: Install wheel
         run: pip install cryptography --no-index -f wheelhouse/
         

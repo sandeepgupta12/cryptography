@@ -155,6 +155,18 @@ jobs:
           - {VERSION: "3.12", NOXSESSION: "docs", OPENSSL: {TYPE: "openssl", VERSION: "3.2.3"}}
           - {VERSION: "3.12", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.0.15"}}
           - {VERSION: "3.12", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.1.7"}}
+          - {VERSION: "3.12", NOXSESSION: "tests-ssh", OPENSSL: {TYPE: "openssl", VERSION: "3.2.3"}}
+          - {VERSION: "3.12", NOXSESSION: "tests-ssh", OPENSSL: {TYPE: "openssl", VERSION: "3.3.2"}}
+          - {VERSION: "3.12", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.2.3", CONFIG_FLAGS: "\"no-engine no-rc2 no-srtp no-ct no-psk\""}}
+          - {VERSION: "3.12", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.2.3", CONFIG_FLAGS: "no-legacy", NO_LEGACY: "1"}}
+          - {VERSION: "3.12", NOXSESSION: "tests", NOXARGS: "--enable-fips=1", OPENSSL: {TYPE: "openssl", CONFIG_FLAGS: "enable-fips", VERSION: "3.1.7"}}
+          - {VERSION: "3.12", NOXSESSION: "tests", NOXARGS: "--enable-fips=1", OPENSSL: {TYPE: "openssl", CONFIG_FLAGS: "enable-fips", VERSION: "3.2.3"}}
+          - {VERSION: "3.12", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "libressl", VERSION: "3.8.4"}}
+          - {VERSION: "3.12", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "libressl", VERSION: "3.9.2"}}
+          - {VERSION: "3.12", NOXSESSION: "tests-randomorder"}
+          - {VERSION: "3.12", NOXSESSION: "rust,tests", RUST: "1.65.0"}
+          - {VERSION: "3.12", NOXSESSION: "rust,tests", RUST: "beta"}
+          - {VERSION: "3.12", NOXSESSION: "rust,tests", RUST: "nightly"}
           - {VERSION: "3.12", NOXSESSION: "tests-rust-debug"}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7

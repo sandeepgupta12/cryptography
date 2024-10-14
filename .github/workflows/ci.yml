@@ -148,6 +148,84 @@ jobs:
 
       - uses: ./.github/actions/upload-coverage
 
+  ppc64le:
+    runs-on: ["self-hosted", "ppc64le", "linux"]
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON:
+          - {VERSION: "3.12", NOXSESSION: "flake"}
+          - {VERSION: "3.12", NOXSESSION: "rust"}
+          - {VERSION: "3.12", NOXSESSION: "docs", OPENSSL: {TYPE: "openssl", VERSION: "3.2.3"}}
+          - {VERSION: "3.12", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.0.15"}}
+          - {VERSION: "3.12", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.1.7"}}
+          - {VERSION: "3.12", NOXSESSION: "tests-ssh", OPENSSL: {TYPE: "openssl", VERSION: "3.2.3"}}
+          - {VERSION: "3.12", NOXSESSION: "tests-ssh", OPENSSL: {TYPE: "openssl", VERSION: "3.3.2"}}
+          - {VERSION: "3.12", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.2.3", CONFIG_FLAGS: "\"no-engine no-rc2 no-srtp no-ct no-psk\""}}
+          - {VERSION: "3.12", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.2.3", CONFIG_FLAGS: "no-legacy", NO_LEGACY: "1"}}
+          - {VERSION: "3.12", NOXSESSION: "tests", NOXARGS: "--enable-fips=1", OPENSSL: {TYPE: "openssl", CONFIG_FLAGS: "enable-fips", VERSION: "3.1.7"}}
+          - {VERSION: "3.12", NOXSESSION: "tests", NOXARGS: "--enable-fips=1", OPENSSL: {TYPE: "openssl", CONFIG_FLAGS: "enable-fips", VERSION: "3.2.3"}}
+          - {VERSION: "3.12", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "libressl", VERSION: "3.8.4"}}
+          - {VERSION: "3.12", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "libressl", VERSION: "3.9.2"}}
+          - {VERSION: "3.12", NOXSESSION: "tests-randomorder"}
+          - {VERSION: "3.12", NOXSESSION: "rust,tests", RUST: "1.65.0"}
+          - {VERSION: "3.12", NOXSESSION: "rust,tests", RUST: "beta"}
+          - {VERSION: "3.12", NOXSESSION: "rust,tests", RUST: "nightly"}
+          - {VERSION: "3.12", NOXSESSION: "tests-rust-debug"}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up dynamic names
+        id: vars
+        run: |
+          echo "IMAGE_NAME=ppc64le-python-image-${{ github.run_id }}" >> $GITHUB_ENV
+          echo "CONTAINER_NAME=ppc64le-cryptography-container-${{ github.run_id }}" >> $GITHUB_ENV
+  
+      - name: Build Docker image
+        run: |
+            docker build -t $IMAGE_NAME -f ppc64le.dockerfile .
+      
+      - name: Create and start Docker container
+        run: |
+          docker run --name $CONTAINER_NAME -d $IMAGE_NAME tail -f /dev/null
+
+      - name: Run build and tests inside Docker container
+        run: |
+
+          NOXARGS_OPTION=""
+          RUST_OPTION=""
+
+          # Set NOXARGS_OPTION only if NOXARGS is provided
+          if [ -n "${{ matrix.PYTHON.NOXARGS }}" ]; then
+            NOXARGS_OPTION="--noxargs '${{ matrix.PYTHON.NOXARGS }}'"
+          fi
+
+          # Set RUST_OPTION only if RUST is provided
+          if [ -n "${{ matrix.PYTHON.RUST }}" ]; then
+            RUST_OPTION="--rust '${{ matrix.PYTHON.RUST }}'"
+          fi
+
+          docker exec \
+          -e CONFIG_FLAGS_ARG=${{ matrix.PYTHON.OPENSSL.CONFIG_FLAGS }} \
+          -e CRYPTOGRAPHY_OPENSSL_NO_LEGACY="${{ matrix.PYTHON.OPENSSL.NO_LEGACY }}" \
+          $CONTAINER_NAME bash -c "/cryptography/ppc64le-script.sh \
+          --python-version ${{ matrix.PYTHON.VERSION }} \
+          --noxsession ${{ matrix.PYTHON.NOXSESSION }} \
+          --openssl-type ${{ matrix.PYTHON.OPENSSL.TYPE }} \
+          --openssl-version ${{ matrix.PYTHON.OPENSSL.VERSION }} \
+          $NOXARGS_OPTION \
+          $RUST_OPTION"
+
+      - name: Clean up Docker image and container
+        if: always()  # Ensures cleanup runs even if previous steps fail
+        run: |
+          docker stop $CONTAINER_NAME
+          docker rm $CONTAINER_NAME
+          docker rmi $IMAGE_NAME:latest
+     
   distros:
     runs-on: ${{ matrix.IMAGE.RUNNER }}
     container: ghcr.io/pyca/cryptography-runner-${{ matrix.IMAGE.IMAGE }}

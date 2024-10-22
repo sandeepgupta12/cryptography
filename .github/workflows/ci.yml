@@ -187,7 +187,7 @@ jobs:
   
       - name: Build Docker image
         run: |
-            docker build -t $IMAGE_NAME -f ppc64le.dockerfile .
+            docker build -t $IMAGE_NAME -f .github/workflow/ppc64le.dockerfile .
       
       - name: Create and start Docker container
         run: |
@@ -212,7 +212,7 @@ jobs:
           docker exec \
           -e CONFIG_FLAGS_ARG=${{ matrix.PYTHON.OPENSSL.CONFIG_FLAGS }} \
           -e CRYPTOGRAPHY_OPENSSL_NO_LEGACY="${{ matrix.PYTHON.OPENSSL.NO_LEGACY }}" \
-          $CONTAINER_NAME bash -c "/cryptography/ppc64le-script.sh \
+          $CONTAINER_NAME bash -c "/cryptography/.github/workflow/ppc64le-script.sh \
           --python-version ${{ matrix.PYTHON.VERSION }} \
           --noxsession ${{ matrix.PYTHON.NOXSESSION }} \
           --openssl-type ${{ matrix.PYTHON.OPENSSL.TYPE }} \

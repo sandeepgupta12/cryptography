@@ -119,7 +119,7 @@ fn compute_pss_salt_length<'p>(
         hash_algorithm
             .getattr(pyo3::intern!(py, "digest_size"))?
             .extract::<u16>()
-    } else if py_saltlen.is_instance_of::<pyo3::types::PyLong>() {
+    } else if py_saltlen.is_instance_of::<pyo3::types::PyInt>() {
         py_saltlen.extract::<u16>()
     } else {
         Err(pyo3::exceptions::PyTypeError::new_err(
@@ -285,6 +285,7 @@ pub(crate) fn sign_data<'p>(
     private_key: pyo3::Bound<'p, pyo3::PyAny>,
     hash_algorithm: pyo3::Bound<'p, pyo3::PyAny>,
     rsa_padding: pyo3::Bound<'p, pyo3::PyAny>,
+    ecdsa_deterministic: Option<bool>,
     data: &[u8],
 ) -> pyo3::PyResult<PyBackedBytes> {
     let key_type = identify_key_type(py, private_key.clone())?;
@@ -294,7 +295,9 @@ pub(crate) fn sign_data<'p>(
             private_key.call_method1(pyo3::intern!(py, "sign"), (data,))?
         }
         KeyType::Ec => {
-            let ecdsa = types::ECDSA.get(py)?.call1((hash_algorithm,))?;
+            let ecdsa = types::ECDSA
+                .get(py)?
+                .call1((hash_algorithm, ecdsa_deterministic.unwrap_or(false)))?;
             private_key.call_method1(pyo3::intern!(py, "sign"), (data, ecdsa))?
         }
         KeyType::Rsa => {

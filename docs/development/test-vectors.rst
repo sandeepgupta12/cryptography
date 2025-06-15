@@ -47,6 +47,28 @@ Asymmetric ciphers
 * RSA OAEP with custom label from the `BoringSSL evp tests`_.
 * Ed448 test vectors from :rfc:`8032`.
 * Deterministic ECDSA (:rfc:`6979`) from `OpenSSL's RFC 6979 test vectors`_.
+* ``asymmetric/PKCS8/rsa-40bitrc2.pem`` a PKCS8 encoded RSA key from GnuTLS
+  encrypted with ``pbeWithSHAAnd40BitRC2-CBC``. The password is ``baz``.
+* ``asymmetric/PKCS8/rsa-rc2-cbc.pem`` a PKCS8 encoded RSA key from GnuTLS
+  encrypted with ``RC2-CBC``. The password is ``Red Hat Enterprise Linux 7.4``.
+* ``asymmetric/PKCS8/rsa_pkcs8_pbes2_pbkdf2_2048_3des_sha224.pem`` a PKCS8
+  encoded RSA key from Mbed-TLS using ``sha224`` as the PRF for PBKDF2.
+  The password is ``PolarSSLTest``.
+* ``asymmetric/PKCS8/rsa_pkcs8_pbes2_pbkdf2_2048_3des_sha384.pem`` a PKCS8
+  encoded RSA key from Mbed-TLS using ``sha384`` as the PRF for PBKDF2.
+  The password is ``PolarSSLTest``.
+* ``asymmetric/PKCS8/rsa_pkcs8_pbes2_pbkdf2_2048_3des_sha512.pem`` a PKCS8
+  encoded RSA key from Mbed-TLS using ``sha512`` as the PRF for PBKDF2.
+  The password is ``PolarSSLTest``.
+* ``asymmetric/PKCS8/rsa-aes-192-cbc.pem`` a PKCS8 encoded RSA key from Mbed-TLS
+  encrypted with ``AES-192-CBC``. The password is ``PolarSSLTest``.
+* ``asymmetric/PKCS8/ed25519-scrypt.pem`` a PKCS8 encoded Ed25519 key from
+  RustCrypto using scrypt as the KDF. The password is ``hunter42``.
+* ``asymmetric/PKCS8/rsa-rc2-cbc-effective-key-length.pem`` a PKCS8 encoded key
+  encrypted with ``RC2-CBC`` with the ``effectiveKeyLength`` parameter set to
+  258. This is an invalid key.
+* ``asymmetric/PKCS8/enc-ec-sha1-128-rc4.pem`` a PKCS8 encoded ECDSA P-256 key
+  encrypted with ``pbeWithSHA1And128BitRC4``. The password is ``password``.
 
 
 Custom asymmetric vectors
@@ -121,6 +143,42 @@ Custom asymmetric vectors
 * ``asymmetric/EC/explicit_parameters_wap_wsg_idm_ecid_wtls11_private_key.pem`` -
   Contains an EC private key with over the ``wap-wsg-idm-ecid-wtls11`` curve,
   encoded with explicit parameters.
+* ``asymmetric/EC/secp256k1-explicit-no-seed.pem`` - An unencrypted PKCS8 private
+  key with the ``secp256k1`` curve explicitly encoded (``secp256k1`` does not have
+  a seed).
+* ``asymmetric/EC/secp256k1-pub-explicit-no-seed.pem`` - A public key with the
+  ``secp256k1`` curve explicitly encoded. This is the  public key for the
+  private key ``asymmetric/EC/secp256k1-explicit-no-seed.pem``.
+* ``asymmetric/EC/secp256r1-explicit-no-seed.pem`` - An unencrypted PKCS8 private
+  key with the ``secp256r1`` curve explicitly encoded and with the seed omitted.
+* ``asymmetric/EC/secp256r1-pub-explicit-no-seed.pem`` - A public key with the
+  ``secp256r1`` curve explicitly encoded and with the seed omitted. This is the
+  public key for the private key ``asymmetric/EC/secp256r1-explicit-no-seed.pem``.
+* ``asymmetric/EC/secp256r1-explicit-seed.pem`` - An unencrypted PKCS8 private
+  key with the ``secp256r1`` curve explicitly encoded.
+* ``asymmetric/EC/secp256r1-pub-explicit-seed.pem`` - A public key with the
+  ``secp256r1`` curve explicitly encoded. This is the  public key for the
+  private key ``asymmetric/EC/secp256r1-explicit-seed.pem``.
+* ``asymmetric/EC/secp384r1-explicit-no-seed.pem`` - An unencrypted PKCS8 private
+  key with the ``secp384r1`` curve explicitly encoded and with the seed omitted.
+* ``asymmetric/EC/secp384r1-pub-explicit-no-seed.pem`` - A public key with the
+  ``secp384r1`` curve explicitly encoded and with the seed omitted. This is the
+  public key for the private key ``asymmetric/EC/secp384r1-explicit-no-seed.pem``.
+* ``asymmetric/EC/secp384r1-explicit-seed.pem`` - An unencrypted PKCS8 private
+  key with the ``secp384r1`` curve explicitly encoded.
+* ``asymmetric/EC/secp384r1-pub-explicit-seed.pem`` - A public key with the
+  ``secp384r1`` curve explicitly encoded. This is the  public key for the
+  private key ``asymmetric/EC/secp384r1-explicit-seed.pem``.
+* ``asymmetric/EC/secp521r1-explicit-no-seed.pem`` - An unencrypted PKCS8 private
+  key with the ``secp521r1`` curve explicitly encoded and with the seed omitted.
+* ``asymmetric/EC/secp521r1-pub-explicit-no-seed.pem`` - A public key with the
+  ``secp521r1`` curve explicitly encoded and with the seed omitted. This is the
+  public key for the private key ``asymmetric/EC/secp521r1-explicit-no-seed.pem``.
+* ``asymmetric/EC/secp521r1-explicit-seed.pem`` - An unencrypted PKCS8 private
+  key with the ``secp521r1`` curve explicitly encoded.
+* ``asymmetric/EC/secp521r1-pub-explicit-seed.pem`` - A public key with the
+  ``secp521r1`` curve explicitly encoded. This is the  public key for the
+  private key ``asymmetric/EC/secp521r1-explicit-seed.pem``.
 * ``asymmetric/EC/secp128r1_private_key.pem`` - Contains an EC private key on
   the curve ``secp128r1``.
 * ``asymmetric/EC/sect163k1-spki.pem`` - Contains an EC SPKI on the curve
@@ -183,7 +241,57 @@ Custom asymmetric vectors
   encrypted at the PEM level with AES-128-CBC and password "a123456".
 * ``asymmetric/DER_Serialization/testrsa.der`` - The above as a DER-encoded
   RSAPrivateKey structure.
-
+* ``asymmetric/DSA/custom/nilpotent.pem`` -- A key where the field is actually
+  a ring and the generator of the multiplicative subgroup is actually
+  nilpotent with low degree. Taken from BoringSSL (see
+  ``TEST(DSATest, NilpotentGenerator)``).
+* ``asymmetric/PKCS8/ec-invalid-private-scalar.pem`` - Contains a PKCS8 encoded
+  PEM with a ``secp256r1`` OID and an invalid (very large) private scalar.
+* ``asymmetric/PKCS8/invalid-version.der`` - Contains a PKCS8 encoded DER with
+  an invalid version field.
+* ``asymmetric/PKCS8/unknown-oid.der`` - Contains a PKCS8 encoded DER with an
+  unknown OID.
+* ``asymmetric/Traditional_OpenSSL_Serialization/rsa-wrong-version.pem`` - An
+  RSA key, encoded as a "traditional" ``RSA PRIVATE KEY`` PEM block, with an
+  invalid version number.
+* ``asymmetric/Traditional_OpenSSL_Serialization/dsa-wrong-version.pem`` - A
+  DSA key, encoded as a "traditional" ``DSA PRIVATE KEY`` PEM block, with an
+  invalid version number.
+* ``asymmetric/PKCS8/ec-inconsistent-curve.pem`` - A PKCS8 encoded EC key where
+  the the curve OID in the parameters does not match the curve OID in the key.
+* ``asymmetric/PKCS8/ec-inconsistent-curve2.pem`` - A PKCS8 encoded EC key
+  where the the curve OID in the parameters does not match the curve OID in
+  the key (the OIDs are reversed from ``ec-inconsistent-curve.pem``).
+* ``asymmetric/EC/ec-missing-curve.pem`` - A PKCS#1 encoded EC key where the
+  curve OID is missing.
+* ``asymmetric/PKCS8/ec-consistent-curve.pem`` - A PKCS8 encoded EC key where
+  the the curve OID in the parameters is the same as the curve OID in the key
+  (encoding the curve OID twice is duplicative, as the inner curve is
+  optional).
+* ``asymmetric/PKCS8/ec-invalid-version.pem`` - A PKCS8 encoded EC key with an
+  invalid elliptic curve version field.
+* ``asymmetric/PKCS8/enc-rsa-3des.pem`` - A PKCS8 encoded RSA key encrypted
+  with 3DES, with the password "password".
+* ``asymmetric/PKCS8/enc-unknown-algorithm.pem`` - A PKCS8 encoded key with an
+  unknown encryption algorithm.
+* ``asymmetric/PKCS8/enc-unknown-pbkdf2-prf.pem`` - A PKCS8 encoded key
+  encrypted using PBKDF2 with an unknown PRF.
+* ``asymmetric/PKCS8/enc-unknown-kdf.pem`` - A PKCS8 encoded key encrypted
+  using an unknown KDF.
+* ``asymmetric/Traditional_OpenSSL_Serialization/key1-no-dek-info.pem`` - An
+  RSA key in an encrypted PEM with no ``DEK-Info`` header.
+* ``asymmetric/Traditional_OpenSSL_Serialization/key1-malformed-dek-info.pem``
+  - An RSA key in an encrypted PEM with a malformed ``DEK-Info`` header (no
+  comma).
+* ``asymmetric/Traditional_OpenSSL_Serialization/key1-malformed-iv.pem`` - An
+  RSA key in an encrypted PEM with a malformed IV (not valid hex).
+* ``asymmetric/Traditional_OpenSSL_Serialization/key1-short-iv.pem`` - An
+  RSA key in an encrypted PEM with an IV that's too short (less than 8 bytes).
+* ``asymmetric/PKCS8/rsa-pbewithmd5anddescbc.pem`` - A PKCS8 encoded RSA key
+  encrypted using the ``pbeWithMD5AndDES-CBC`` algorithm with the password
+  ``hunter2``.
+* ``asymmetric/PKCS8/rsa-pbe-3des-long-salt.pem`` - A PKCS8 encoded RSA key
+  encrypted with a 20 byte salt with the password ``password``.
 
 Key exchange
 ~~~~~~~~~~~~
@@ -546,6 +654,24 @@ Custom X.509 Vectors
   This is an invalid certificate per :rfc:`5280` 4.2.1.12.
 * ``malformed-san.pem`` - A certificate with a malformed SAN.
 * ``malformed-ian.pem`` - A certificate with a malformed IAN.
+* ``admissions_extension_optional_data_not_provided.pem`` -
+  A certificate containing the ``Admissions`` extension with multiple admissions,
+  signed by ``x509/custom/ca/rsa_ca.pem`` CA. The admissions in this certificate
+  are prepared using synthetic data to verify the possible corner cases are handled
+  by the parser correctly (an admission missing naming authority or admission
+  authority, a profession info missing naming authority or profession OIDs
+  or the registration number etc).
+* ``admissions_extension_authority_not_provided.pem`` - A certificate containing
+  the ``Admissions`` extension with no admissions and no admission authority,
+  signed by ``x509/custom/ca/rsa_ca.pem`` CA.
+* ``no_sans.pem`` - Leaf certificate issued by ``x509/custom/ca/rsa_ca.pem``
+  with no SAN extension.
+* ``private_key_usage_period_both_dates.pem`` - A certificate containing
+  PrivateKeyUsagePeriod with both ``notBefore`` and ``notAfter`` fields set.
+* ``private_key_usage_period_only_not_before.pem`` - A certificate containing
+  PrivateKeyUsagePeriod with only ``notBefore`` field set.
+* ``private_key_usage_period_only_not_after.pem`` - A certificate containing
+  PrivateKeyUsagePeriod with only ``notAfter`` field set.
 
 Custom X.509 Request Vectors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -598,6 +724,8 @@ Custom X.509 Request Vectors
   invalid.
 * ``long-form-attribute.pem`` - A certificate signing request containing an
   attribute whose value's tag is encoded in the long form.
+* ``zero-element-attribute.pem`` - A certificate signing request containing an
+  attribute whose value has zero elements.
 
 Custom X.509 Certificate Revocation List Vectors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -671,6 +799,8 @@ Custom X.509 Certificate Revocation List Vectors
 * ``crl_inner_outer_mismatch.der`` - A CRL created from
   ``valid_signature_crl.pem`` but with a mismatched inner and
   outer signature algorithm. The signature on this CRL is invalid.
+* ``crl_issuer_invalid_printable_string.der`` - A CRL where the ``issuer``
+  field contains an invalid ``PRINTABLE STRING`` value.
 
 X.509 OCSP Test Vectors
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -850,6 +980,10 @@ Custom PKCS12 Test Vectors
   certs (``x509/cryptography.io.pem`` and ``x509/letsencryptx3.pem``)
   with friendly names ``☹`` and ``ï``, respectively, encrypted via
   AES 256 CBC with the password ``cryptography``.
+* ``pkcs12/java-truststore.p12`` - A PKCS12 file containing two certs
+  (``x509/custom/dsa_selfsigned_ca.pem`` and ``x509/letsencryptx3.pem``) with
+  the first having a friendly name of `cert1`. Both have Java truststore
+  attributes with ANY_EXTENDED_KEY_USAGE.
 
 Custom PKCS7 Test Vectors
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -860,6 +994,15 @@ Custom PKCS7 Test Vectors
 * ``pkcs7/amazon-roots.der`` - A DER encoded PCKS7 file containing Amazon Root
   CA 2 and 3 generated by OpenSSL.
 * ``pkcs7/enveloped.pem`` - A PEM encoded PKCS7 file with enveloped data.
+* ``pkcs7/enveloped-triple-des.pem`` - A PEM encoded PKCS7 file with
+  enveloped data, with content encrypted using DES EDE3 CBC (also called
+  Triple DES), under the public key of ``x509/custom/ca/rsa_ca.pem``.
+* ``pkcs7/enveloped-rsa-oaep.pem``- A PEM encoded PKCS7 file with
+  enveloped data, with key encrypted using RSA-OAEP, under the public key of
+  ``x509/custom/ca/rsa_ca.pem``.
+* ``pkcs7/enveloped-no-content.der``- A DER encoded PKCS7 file with
+  enveloped data, without encrypted content, with key encrypted under the
+  public key of ``x509/custom/ca/rsa_ca.pem``.
 
 Custom OpenSSH Test Vectors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

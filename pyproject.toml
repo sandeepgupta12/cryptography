@@ -2,30 +2,30 @@
 # These requirements must be kept sync with the requirements in
 # ./.github/requirements/build-requirements.{in,txt}
 requires = [
-    "maturin>=1,<2",
+    "maturin>=1.8.6,<2",
 
     # Must be kept in sync with `project.dependencies`
-    "cffi>=1.12; platform_python_implementation != 'PyPy'",
-    # Needed because cffi imports distutils, and in Python 3.12, distutils has
-    # been removed from the stdlib, but installing setuptools puts it back.
+    "cffi>=1.14; platform_python_implementation != 'PyPy'",
+    # Used by cffi (which import distutils, and in Python 3.12, distutils has
+    # been removed from the stdlib, but installing setuptools puts it back) as
+    # well as our build.rs for the rust/cffi bridge.
     "setuptools!=74.0.0,!=74.1.0,!=74.1.1,!=74.1.2",
 ]
 build-backend = "maturin"
 
 [project]
 name = "cryptography"
-version = "44.0.0.dev1"
+version = "46.0.0.dev1"
 authors = [
-    {name = "The Python Cryptographic Authority and individual contributors", email = "cryptography-dev@python.org"}
+    { name = "The Python Cryptographic Authority and individual contributors", email = "cryptography-dev@python.org" },
 ]
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
 readme = "README.rst"
-license = {text = "Apache-2.0 OR BSD-3-Clause"}
+license = "Apache-2.0 OR BSD-3-Clause"
+license-files = [ "LICENSE", "LICENSE.APACHE", "LICENSE.BSD" ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "License :: OSI Approved :: BSD License",
     "Natural Language :: English",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX",
@@ -35,7 +35,6 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -46,10 +45,10 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Security :: Cryptography",
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.8,!=3.9.0,!=3.9.1"
 dependencies = [
     # Must be kept in sync with `build-system.requires`
-    "cffi>=1.12; platform_python_implementation != 'PyPy'",
+    "cffi>=1.14; platform_python_implementation != 'PyPy'",
 ]
 
 [project.urls]
@@ -63,22 +62,35 @@ changelog = "https://cryptography.io/en/latest/changelog/"
 ssh = ["bcrypt >=3.1.5"]
 
 # All the following are used for our own testing.
-nox = ["nox", "nox[uv] >=2024.03.02; python_version >= '3.8'"]
+nox = ["nox[uv] >=2024.04.15"]
 test = [
     "cryptography_vectors",
-    "pytest >=6.2.0",
-    "pytest-benchmark",
-    "pytest-cov",
-    "pytest-xdist",
-    "pretend",
-    "certifi",
+    "pytest >=7.4.0",
+    "pytest-benchmark >=4.0",
+    "pytest-cov >=2.10.1",
+    "pytest-xdist >=3.5.0",
+    "pretend >=0.7",
+    "certifi >=2024",
 ]
 test-randomorder = ["pytest-randomly"]
-docs = ["sphinx >=5.3.0", "sphinx-rtd-theme >=3.0.0; python_version >= '3.8'"]
-docstest = ["pyenchant >=1.6.11", "readme-renderer", "sphinxcontrib-spelling >=4.0.1"]
-sdist = ["build"]
+docs = [
+    "sphinx >=5.3.0",
+    "sphinx-rtd-theme >=3.0.0",
+    "sphinx-inline-tabs",
+]
+docstest = [
+    "pyenchant >=3",
+    "readme-renderer >=30.0",
+    "sphinxcontrib-spelling >=7.3.1",
+]
+sdist = ["build >=1.0.0"]
 # `click` included because its needed to type check `release.py`
-pep8test = ["ruff", "mypy", "check-sdist; python_version >= '3.8'", "click"]
+pep8test = [
+    "ruff >=0.11.11",
+    "mypy >=1.14",
+    "check-sdist",
+    "click >=8.0.1",
+]
 
 [tool.maturin]
 python-source = "src"
@@ -87,29 +99,27 @@ manifest-path = "src/rust/Cargo.toml"
 module-name = "cryptography.hazmat.bindings._rust"
 locked = true
 sdist-generator = "git"
-features = ["pyo3/abi3-py37"]
 include = [
     "CHANGELOG.rst",
     "CONTRIBUTING.rst",
-    "LICENSE",
-    "LICENSE.APACHE",
-    "LICENSE.BSD",
 
     "docs/**/*",
 
-    "src/_cffi_src/**/*.py",
-    "src/_cffi_src/**/*.c",
-    "src/_cffi_src/**/*.h",
+    { path = "src/_cffi_src/**/*.py", format = "sdist" },
+    { path = "src/_cffi_src/**/*.c", format = "sdist" },
+    { path = "src/_cffi_src/**/*.h", format = "sdist" },
 
-    "src/rust/**/Cargo.toml",
-    "src/rust/**/Cargo.lock",
-    "src/rust/**/*.rs",
+    { path = "Cargo.toml", format = "sdist" },
+    { path = "Cargo.lock", format = "sdist" },
+    { path = "src/rust/**/Cargo.toml", format = "sdist" },
+    { path = "src/rust/**/Cargo.lock", format = "sdist" },
+    { path = "src/rust/**/*.rs", format = "sdist" },
 
     "tests/**/*.py",
 ]
 exclude = [
     "vectors/**/*",
-    "src/rust/target/**/*",
+    "target/**/*",
     "docs/_build/**/*",
     ".github/**/*",
     ".readthedocs.yml",
@@ -133,20 +143,16 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_unused_configs = true
 strict_equality = true
+strict_bytes = true
 
 [[tool.mypy.overrides]]
-module = [
-    "pretend"
-]
+module = ["pretend"]
 ignore_missing_imports = true
 
 [tool.coverage.run]
 branch = true
 relative_files = true
-source = [
-    "cryptography",
-    "tests/",
-]
+source = ["cryptography", "tests/"]
 
 [tool.coverage.paths]
 source = [
@@ -155,10 +161,7 @@ source = [
     "*.nox\\*\\Lib\\site-packages\\cryptography",
     "*.nox/pypy/site-packages/cryptography",
 ]
-tests = [
-    "tests/",
-    "*tests\\",
-]
+tests = ["tests/", "*tests\\"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -166,6 +169,9 @@ exclude_lines = [
     "@typing.overload",
     "if typing.TYPE_CHECKING",
 ]
+
+[tool.coverage.html]
+show_contexts = true
 
 [tool.ruff]
 line-length = 79
@@ -183,14 +189,4 @@ git-only = [
     "ci-constraints-requirements.txt",
     ".gitattributes",
     ".gitignore",
-]
-
-[tool.uv]
-# These cover all Python versions, but by expressing multiple environments we
-# force uv's resolver to pick the latest versions of packages for each version.
-environments = [
-    "python_version >= '3.10'",
-    "python_version >= '3.9' and python_version < '3.10'",
-    "python_version >= '3.8' and python_version < '3.9'",
-    "python_version < '3.8'",
 ]

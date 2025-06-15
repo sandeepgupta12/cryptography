@@ -48,7 +48,10 @@ from ..hazmat.primitives.fixtures_ec import EC_KEY_SECP256R1
 from ..hazmat.primitives.fixtures_rsa import (
     RSA_KEY_2048_ALT,
 )
-from ..hazmat.primitives.test_ec import _skip_curve_unsupported
+from ..hazmat.primitives.test_ec import (
+    _skip_curve_unsupported,
+    _skip_deterministic_ecdsa_unsupported,
+)
 from ..hazmat.primitives.test_rsa import rsa_key_512, rsa_key_2048
 from ..utils import (
     load_nist_vectors,
@@ -604,6 +607,16 @@ class TestCertificateRevocationList:
         with pytest.raises(TypeError):
             crl.is_signature_valid(object)  # type: ignore[arg-type]
 
+    def test_crl_issuer_invalid_printable_string(self):
+        data = _load_cert(
+            os.path.join(
+                "x509", "custom", "crl_issuer_invalid_printable_string.der"
+            ),
+            lambda v: v,
+        )
+        with pytest.raises(ValueError):
+            x509.load_der_x509_crl(data)
+
 
 class TestRevokedCertificate:
     def test_revoked_basics(self, backend):
@@ -852,7 +865,7 @@ class TestRSAPSSCertificate:
         assert isinstance(pss, padding.PSS)
         assert isinstance(pss._mgf, padding.MGF1)
         assert isinstance(pss._mgf._algorithm, hashes.SHA256)
-        assert pss._salt_length == 222
+        assert pss._salt_length == 32
         assert isinstance(cert.signature_hash_algorithm, hashes.SHA256)
         pub_key.verify(
             cert.signature,
@@ -1148,7 +1161,7 @@ class TestRSACertificate:
 
         with pytest.raises(
             x509.DuplicateExtension,
-            match="Duplicate 2.5.29.19 extension found",
+            match=r"Duplicate 2\.5\.29\.19 extension found",
         ):
             cert.tbs_precertificate_bytes
 
@@ -1860,6 +1873,138 @@ class TestRSACertificate:
 
         with pytest.raises(TypeError):
             cert.verify_directly_issued_by(leaf)
+
+    def test_admissions_extension(self, backend):
+        cert = _load_cert(
+            os.path.join(
+                "x509",
+                "custom",
+                "admissions_extension_optional_data_not_provided.pem",
+            ),
+            x509.load_pem_x509_certificate,
+        )
+        ext = cert.extensions.get_extension_for_class(x509.Admissions)
+        assert ext.value == x509.Admissions(
+            authority=x509.DirectoryName(
+                value=x509.Name(
+                    [
+                        x509.NameAttribute(
+                            oid=x509.NameOID.COUNTRY_NAME, value="DE"
+                        ),
+                        x509.NameAttribute(
+                            oid=x509.NameOID.ORGANIZATION_NAME,
+                            value="Elektronisches Gesundheitsberuferegister",
+                        ),
+                    ]
+                )
+            ),
+            admissions=[
+                x509.Admission(
+                    admission_authority=x509.RegisteredID(
+                        value=x509.NameOID.ORGANIZATION_NAME
+                    ),
+                    naming_authority=x509.NamingAuthority(
+                        id=x509.ObjectIdentifier("1.2.276.0.76.4.223"),
+                        url="",
+                        text="BetriebsstÃ¤tte GKV-Spitzenverband",
+                    ),
+                    profession_infos=[
+                        x509.ProfessionInfo(
+                            naming_authority=x509.NamingAuthority(
+                                id=x509.ObjectIdentifier("1.2.276.0.76.4.225"),
+                                url="https://example.com",
+                                text=(
+                                    "BetriebsstÃ¤tte Deutscher "
+                                    "Apothekerverband"
+                                ),
+                            ),
+                            profession_items=["Ã\x84rztin/Arzt", ""],
+                            profession_oids=[
+                                x509.ObjectIdentifier("1.2.276.0.76.4.30"),
+                                x509.ObjectIdentifier("1.2.276.0.76.4.31"),
+                            ],
+                            registration_number="9-999/99999999",
+                            add_profession_info=(
+                                b'\x16"additional profession info example'
+                            ),
+                        )
+                    ],
+                ),
+                x509.Admission(
+                    admission_authority=x509.OtherName(
+                        type_id=x509.NameOID.COUNTRY_NAME,
+                        value=b"\x04\x04\x13\x02DE",
+                    ),
+                    naming_authority=None,
+                    profession_infos=[
+                        x509.ProfessionInfo(
+                            naming_authority=x509.NamingAuthority(
+                                id=x509.ObjectIdentifier("1.2.276.0.76.4.227"),
+                                url=None,
+                                text=(
+                                    "BetriebsstÃ¤tte der Deutsche Krankenhaus "
+                                    "TrustCenter und Informationsverarbeitung "
+                                    "GmbH"
+                                ),
+                            ),
+                            profession_items=["Krankenhaus"],
+                            profession_oids=[
+                                x509.ObjectIdentifier("1.2.276.0.76.4.53"),
+                                x509.ObjectIdentifier("1.2.276.0.76.4.246"),
+                            ],
+                            registration_number="9.9.9-99999999",
+                            add_profession_info=None,
+                        ),
+                        x509.ProfessionInfo(
+                            naming_authority=None,
+                            profession_items=[
+                                "Krankenhaus",
+                                "BetriebsstÃ¤tte Geburtshilfe",
+                            ],
+                            profession_oids=[
+                                x509.ObjectIdentifier("1.2.276.0.76.4.53")
+                            ],
+                            registration_number="",
+                            add_profession_info=None,
+                        ),
+                    ],
+                ),
+                x509.Admission(
+                    admission_authority=None,
+                    naming_authority=None,
+                    profession_infos=[
+                        x509.ProfessionInfo(
+                            naming_authority=None,
+                            profession_items=[],
+                            profession_oids=None,
+                            registration_number=None,
+                            add_profession_info=None,
+                        )
+                    ],
+                ),
+                x509.Admission(
+                    admission_authority=None,
+                    naming_authority=x509.NamingAuthority(None, None, None),
+                    profession_infos=[],
+                ),
+                x509.Admission(
+                    admission_authority=None,
+                    naming_authority=None,
+                    profession_infos=[],
+                ),
+            ],
+        )
+
+        cert = _load_cert(
+            os.path.join(
+                "x509",
+                "custom",
+                "admissions_extension_authority_not_provided.pem",
+            ),
+            x509.load_pem_x509_certificate,
+        )
+        ext = cert.extensions.get_extension_for_class(x509.Admissions)
+        assert ext.value == x509.Admissions(authority=None, admissions=[])
 
 
 class TestRSACertificateRequest:
@@ -2723,6 +2868,11 @@ class TestCertificateBuilder:
         computed_len,
         backend,
     ):
+        pss = padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()), salt_length=padding_len
+        )
+        if not backend.rsa_padding_supported(pss):
+            pytest.skip("PSS padding with these parameters not supported")
         builder = (
             x509.CertificateBuilder()
             .subject_name(
@@ -2735,9 +2885,6 @@ class TestCertificateBuilder:
             .serial_number(777)
             .not_valid_before(datetime.datetime(2020, 1, 1))
             .not_valid_after(datetime.datetime(2038, 1, 1))
-        )
-        pss = padding.PSS(
-            mgf=padding.MGF1(hashes.SHA256()), salt_length=padding_len
         )
         cert = builder.sign(rsa_key_2048, hashes.SHA256(), rsa_padding=pss)
         assert isinstance(cert.signature_algorithm_parameters, padding.PSS)
@@ -3472,6 +3619,71 @@ class TestCertificateBuilder:
         assert list(subject_alternative_name.value) == [
             x509.DNSName("cryptography.io"),
         ]
+
+    def test_build_cert_with_deterministic_ecdsa_signature(self, backend):
+        _skip_curve_unsupported(backend, ec.SECP256R1())
+        _skip_deterministic_ecdsa_unsupported(backend)
+
+        private_key = ec.generate_private_key(ec.SECP256R1())
+
+        not_valid_before = datetime.datetime(2002, 1, 1, 12, 1)
+        not_valid_after = datetime.datetime(2030, 12, 31, 8, 30)
+
+        builder = (
+            x509.CertificateBuilder()
+            .serial_number(777)
+            .issuer_name(x509.Name([]))
+            .subject_name(x509.Name([]))
+            .public_key(private_key.public_key())
+            .not_valid_before(not_valid_before)
+            .not_valid_after(not_valid_after)
+        )
+        cert1 = builder.sign(
+            private_key,
+            hashes.SHA256(),
+            backend,
+            ecdsa_deterministic=True,
+        )
+        cert2 = builder.sign(
+            private_key,
+            hashes.SHA256(),
+            backend,
+            ecdsa_deterministic=True,
+        )
+        cert_nondet = builder.sign(private_key, hashes.SHA256(), backend)
+        cert_nondet2 = builder.sign(
+            private_key, hashes.SHA256(), backend, ecdsa_deterministic=False
+        )
+
+        assert cert1.signature == cert2.signature
+        assert cert1.signature != cert_nondet.signature
+        assert cert_nondet.signature != cert_nondet2.signature
+
+        private_key.public_key().verify(
+            cert1.signature,
+            cert1.tbs_certificate_bytes,
+            ec.ECDSA(hashes.SHA256()),
+        )
+
+    def test_sign_deterministic_wrong_key_type(self, rsa_key_2048, backend):
+        not_valid_before = datetime.datetime(2002, 1, 1, 12, 1)
+        not_valid_after = datetime.datetime(2030, 12, 31, 8, 30)
+        builder = (
+            x509.CertificateBuilder()
+            .serial_number(777)
+            .issuer_name(x509.Name([]))
+            .subject_name(x509.Name([]))
+            .public_key(rsa_key_2048.public_key())
+            .not_valid_before(not_valid_before)
+            .not_valid_after(not_valid_after)
+        )
+        with pytest.raises(TypeError):
+            builder.sign(
+                rsa_key_2048,
+                hashes.SHA256(),
+                backend,
+                ecdsa_deterministic=True,
+            )
 
     def test_build_cert_with_bmpstring_universalstring_name(
         self, rsa_key_2048: rsa.RSAPrivateKey, backend
@@ -4251,6 +4463,10 @@ class TestCertificateBuilder:
                 encipher_only=False,
                 decipher_only=False,
             ),
+            x509.PrivateKeyUsagePeriod(
+                not_before=datetime.datetime(2002, 1, 1, 12, 1),
+                not_after=datetime.datetime(2030, 12, 31, 8, 30),
+            ),
             x509.OCSPNoCheck(),
             x509.SubjectKeyIdentifier,
         ],
@@ -4638,6 +4854,61 @@ class TestCertificateSigningRequestBuilder:
         assert isinstance(basic_constraints.value, x509.BasicConstraints)
         assert basic_constraints.value.ca is True
         assert basic_constraints.value.path_length == 2
+
+    def test_build_ca_request_with_deterministic_ec(self, backend):
+        _skip_curve_unsupported(backend, ec.SECP256R1())
+        _skip_deterministic_ecdsa_unsupported(backend)
+
+        private_key = ec.generate_private_key(ec.SECP256R1())
+
+        builder = x509.CertificateSigningRequestBuilder().subject_name(
+            x509.Name([])
+        )
+        csr1 = builder.sign(
+            private_key,
+            hashes.SHA256(),
+            backend,
+            ecdsa_deterministic=True,
+        )
+        csr2 = builder.sign(
+            private_key,
+            hashes.SHA256(),
+            backend,
+            ecdsa_deterministic=True,
+        )
+
+        csr_nondet = builder.sign(
+            private_key,
+            hashes.SHA256(),
+            backend,
+        )
+
+        csr_nondet2 = builder.sign(
+            private_key,
+            hashes.SHA256(),
+            backend,
+        )
+
+        assert csr1.signature == csr2.signature
+        assert csr1.signature != csr_nondet.signature
+        assert csr_nondet.signature != csr_nondet2.signature
+        private_key.public_key().verify(
+            csr1.signature,
+            csr1.tbs_certrequest_bytes,
+            ec.ECDSA(hashes.SHA256()),
+        )
+
+    def test_csr_deterministic_wrong_key_type(self, rsa_key_2048, backend):
+        builder = x509.CertificateSigningRequestBuilder().subject_name(
+            x509.Name([])
+        )
+        with pytest.raises(TypeError):
+            builder.sign(
+                rsa_key_2048,
+                hashes.SHA256(),
+                backend,
+                ecdsa_deterministic=True,
+            )
 
     @pytest.mark.supported(
         only_if=lambda backend: backend.ed25519_supported(),
@@ -5154,6 +5425,12 @@ class TestCertificateSigningRequestBuilder:
         computed_len,
         backend,
     ):
+        pss = padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()), salt_length=padding_len
+        )
+        if not backend.rsa_padding_supported(pss):
+            pytest.skip("PSS padding with these parameters not supported")
+
         builder = x509.CertificateSigningRequestBuilder().subject_name(
             x509.Name([x509.NameAttribute(NameOID.COUNTRY_NAME, "US")])
         )
@@ -5814,9 +6091,9 @@ class TestNameAttribute:
 
     def test_init_none_value(self):
         with pytest.raises(TypeError):
-            x509.NameAttribute(
+            x509.NameAttribute(  # type:ignore[type-var]
                 NameOID.ORGANIZATION_NAME,
-                None,  # type:ignore[arg-type]
+                None,
             )
 
     def test_init_bad_length(self):
@@ -5878,12 +6155,12 @@ class TestNameAttribute:
         assert na.rfc4514_string() == "2.5.4.15=banking"
 
         # non-utf8 attribute (bitstring with raw bytes)
-        na = x509.NameAttribute(
+        na_bytes = x509.NameAttribute(
             x509.ObjectIdentifier("2.5.4.45"),
             b"\x01\x02\x03\x04",
             _ASN1Type.BitString,
         )
-        assert na.rfc4514_string() == "2.5.4.45=#01020304"
+        assert na_bytes.rfc4514_string() == "2.5.4.45=#01020304"
 
     def test_distinguished_name_custom_attrs(self):
         name = x509.Name(
@@ -6056,10 +6333,11 @@ class TestObjectIdentifier:
         x509.ObjectIdentifier("1.39.999")
         x509.ObjectIdentifier("2.5.29.3")
         x509.ObjectIdentifier("2.999.37.5.22.8")
+        x509.ObjectIdentifier(f"2.25.{2**128 - 1}")
 
     def test_oid_arc_too_large(self):
         with pytest.raises(ValueError):
-            x509.ObjectIdentifier(f"2.25.{2**128 - 1}")
+            x509.ObjectIdentifier(f"2.25.{2**128}")
 
 
 class TestName:
@@ -6572,13 +6850,6 @@ class TestRequestAttributes:
             os.path.join("x509", "requests", "challenge.pem"),
             x509.load_pem_x509_csr,
         )
-        with pytest.warns(utils.DeprecatedIn36):
-            assert (
-                request.get_attribute_for_oid(
-                    x509.oid.AttributeOID.CHALLENGE_PASSWORD
-                )
-                == b"challenge me!"
-            )
 
         assert request.attributes.get_attribute_for_oid(
             x509.oid.AttributeOID.CHALLENGE_PASSWORD
@@ -6592,21 +6863,6 @@ class TestRequestAttributes:
             os.path.join("x509", "requests", "challenge-unstructured.pem"),
             x509.load_pem_x509_csr,
         )
-        with pytest.warns(utils.DeprecatedIn36):
-            assert (
-                request.get_attribute_for_oid(
-                    x509.oid.AttributeOID.CHALLENGE_PASSWORD
-                )
-                == b"beauty"
-            )
-
-        with pytest.warns(utils.DeprecatedIn36):
-            assert (
-                request.get_attribute_for_oid(
-                    x509.oid.AttributeOID.UNSTRUCTURED_NAME
-                )
-                == b"an unstructured field"
-            )
 
         assert request.attributes.get_attribute_for_oid(
             x509.oid.AttributeOID.CHALLENGE_PASSWORD
@@ -6627,13 +6883,6 @@ class TestRequestAttributes:
             os.path.join("x509", "requests", "challenge-invalid.der"),
             x509.load_der_x509_csr,
         )
-
-        # Unsupported in the legacy path
-        with pytest.raises(ValueError):
-            with pytest.warns(utils.DeprecatedIn36):
-                request.get_attribute_for_oid(
-                    x509.oid.AttributeOID.CHALLENGE_PASSWORD
-                )
 
         # supported in the new path where we just store the type and
         # return raw bytes
@@ -6659,12 +6908,6 @@ class TestRequestAttributes:
             x509.load_der_x509_csr,
         )
         with pytest.raises(ValueError, match="Only single-valued"):
-            with pytest.warns(utils.DeprecatedIn36):
-                request.get_attribute_for_oid(
-                    x509.oid.AttributeOID.CHALLENGE_PASSWORD
-                )
-
-        with pytest.raises(ValueError, match="Only single-valued"):
             request.attributes
 
     def test_no_challenge_password(self, backend):
@@ -6672,13 +6915,6 @@ class TestRequestAttributes:
             os.path.join("x509", "requests", "rsa_sha256.pem"),
             x509.load_pem_x509_csr,
         )
-        with pytest.raises(x509.AttributeNotFound) as exc:
-            with pytest.warns(utils.DeprecatedIn36):
-                request.get_attribute_for_oid(
-                    x509.oid.AttributeOID.CHALLENGE_PASSWORD
-                )
-        assert exc.value.oid == x509.oid.AttributeOID.CHALLENGE_PASSWORD
-
         with pytest.raises(x509.AttributeNotFound) as exc:
             request.attributes.get_attribute_for_oid(
                 x509.oid.AttributeOID.CHALLENGE_PASSWORD
@@ -6691,6 +6927,14 @@ class TestRequestAttributes:
             x509.load_pem_x509_csr,
         )
         assert len(request.attributes) == 0
+
+    def test_zero_element_attribute(self):
+        request = _load_cert(
+            os.path.join("x509", "requests", "zero-element-attribute.pem"),
+            x509.load_pem_x509_csr,
+        )
+        with pytest.raises(ValueError, match="Only single-valued"):
+            request.attributes
 
 
 def test_load_pem_x509_certificates():

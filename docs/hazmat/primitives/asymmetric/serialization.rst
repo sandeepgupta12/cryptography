@@ -426,6 +426,37 @@ DSA keys look almost identical but begin with ``ssh-dss`` rather than
     :raises cryptography.exceptions.UnsupportedAlgorithm: If the serialized
         key is of a type that is not supported.
 
+
+.. function:: ssh_key_fingerprint(key, hash_algorithm)
+
+    .. versionadded:: 45.0.0
+
+    Computes the fingerprint of an SSH public key. The fingerprint is the raw
+    bytes of the hash, depending on your use you may need to encode the data as
+    base64 or hex.
+
+    :param key: The public key to compute the fingerprint for.
+    :type key: One of :data:`SSHPublicKeyTypes`
+
+    :param hash_algorithm: The hash algorithm to use, either ``MD5()`` or
+        ``SHA256()``.
+
+    :return: The key fingerprint.
+    :rtype: bytes
+
+    .. code-block:: pycon
+
+        >>> from cryptography.hazmat.primitives.serialization import load_ssh_public_key, ssh_key_fingerprint
+        >>> key_data = b"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAhVNvf1vigXfagQXKjdKN5zEF12KWVMVdDrU3sVLhgd user@example.com"
+        >>> public_key = load_ssh_public_key(key_data)
+        >>> md5_fingerprint = ssh_key_fingerprint(public_key, hashes.MD5())
+        >>> md5_fingerprint
+        b'\x95\xf6\xc0\xe3so\xaen\xcc\x98\xbb\xf4\xd8BJ\x15'
+        >>> sha256_fingerprint = ssh_key_fingerprint(public_key, hashes.SHA256())
+        >>> sha256_fingerprint
+        b'R\x0f*!\x99f9\x9a\xcd\x98[\xe8-&\xbah\xa6x\x96\x87\xb3\xf9\xe0\x9b\xb1,\xcc\xbdt\xd4\xc3\xb7'
+
+
 OpenSSH Private Key
 ~~~~~~~~~~~~~~~~~~~
 
@@ -456,7 +487,7 @@ An example ECDSA key in OpenSSH format::
     :class:`~cryptography.hazmat.primitives.asymmetric.ed25519.Ed25519PrivateKey`.
 
 
-.. function:: load_ssh_private_key(data, password)
+.. function:: load_ssh_private_key(data, password, *, unsafe_skip_rsa_key_validation=False)
 
     .. versionadded:: 3.0
 
@@ -473,6 +504,19 @@ An example ECDSA key in OpenSSH format::
 
     :param bytes password: Password bytes to use to decrypt
         password-protected key. Or ``None`` if not needed.
+
+    :param unsafe_skip_rsa_key_validation:
+
+        .. versionadded:: 45.0.0
+
+        A keyword-only argument that defaults to ``False``. If ``True``
+        RSA private keys will not be validated. This significantly speeds up
+        loading the keys, but is :term:`unsafe` unless you are certain the
+        key is valid. User supplied keys should never be loaded with this
+        parameter set to ``True``. If you do load an invalid key this way and
+        attempt to use it OpenSSL may hang, crash, or otherwise misbehave.
+
+    :type unsafe_skip_rsa_key_validation: bool
 
     :returns: One of :data:`SSHPrivateKeyTypes` depending on the contents of
         ``data``.
@@ -933,11 +977,53 @@ file suffix.
         ...     b"friendlyname", key, cert, None, encryption
         ... )
 
-.. class:: PKCS12Certificate
+.. function:: serialize_java_truststore(pkcs12_certs, encryption_algorithm)
+
+    .. versionadded:: 45.0.0
+
+    .. warning::
+
+        PKCS12 encryption is typically not secure and should not be used as a
+        security mechanism. Wrap a PKCS12 blob in a more secure envelope if you
+        need to store or send it safely.
+
+    Serialize a PKCS12 blob containing provided certificates. Java expects an
+    internal flag to denote truststore usage, which this function adds.
+
+    :param certs: A set of certificates to also include in the structure.
+    :type certs:
+
+        A list of :class:`~cryptography.hazmat.primitives.serialization.pkcs12.PKCS12Certificate`
+        instances.
+
+    :param encryption_algorithm: The encryption algorithm that should be used
+        for the key and certificate. An instance of an object conforming to the
+        :class:`~cryptography.hazmat.primitives.serialization.KeySerializationEncryption`
+        interface. PKCS12 encryption is typically **very weak** and should not
+        be used as a security boundary.
+
+    :return bytes: Serialized PKCS12.
+
+    .. doctest::
+
+        >>> from cryptography import x509
+        >>> from cryptography.hazmat.primitives.serialization import BestAvailableEncryption, pkcs12
+        >>> cert = x509.load_pem_x509_certificate(ca_cert)
+        >>> p12 = pkcs12.serialize_java_truststore(
+        ...     [pkcs12.PKCS12Certificate(cert, b"friendlyname")], BestAvailableEncryption(b"password")
+        ... )
+
+.. class:: PKCS12Certificate(cert, friendly_name=None)
 
     .. versionadded:: 36.0.0
 
     Represents additional data provided for a certificate in a PKCS12 file.
+
+    :param cert: The certificate to associate with the additional data.
+    :type cert: :class:`~cryptography.x509.Certificate`
+
+    :param friendly_name: An optional friendly name for the certificate.
+    :type friendly_name: bytes or None
 
     .. attribute:: certificate
 
@@ -1000,11 +1086,6 @@ PKCS7
 PKCS7 is a format described in :rfc:`2315`, among other specifications. It can
 contain certificates, CRLs, and much more. PKCS7 files commonly have a ``p7b``,
 ``p7m``, or ``p7s`` file suffix but other suffixes are also seen in the wild.
-
-.. note::
-
-    ``cryptography`` only supports parsing certificates from PKCS7 files at
-    this time.
 
 .. data:: PKCS7HashTypes
 
@@ -1126,6 +1207,60 @@ contain certificates, CRLs, and much more. PKCS7 files commonly have a ``p7b``,
     -----END CERTIFICATE-----
     """.strip()
 
+    ca_key_rsa = b"""
+    -----BEGIN PRIVATE KEY-----
+    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
+    fDWXtBuybAb5u+ZaVwHgqaaPCkKkVQ==
+    -----END PRIVATE KEY-----
+    """.strip()
 
 .. class:: PKCS7SignatureBuilder
 
@@ -1219,10 +1354,13 @@ contain certificates, CRLs, and much more. PKCS7 files commonly have a ``p7b``,
         >>> from cryptography import x509
         >>> from cryptography.hazmat.primitives import serialization
         >>> from cryptography.hazmat.primitives.serialization import pkcs7
+        >>> from cryptography.hazmat.primitives.ciphers import algorithms
         >>> cert = x509.load_pem_x509_certificate(ca_cert_rsa)
         >>> options = [pkcs7.PKCS7Options.Text]
         >>> pkcs7.PKCS7EnvelopeBuilder().set_data(
         ...     b"data to encrypt"
+        ... ).set_content_encryption_algorithm(
+        ...     algorithms.AES128
         ... ).add_recipient(
         ...     cert
         ... ).encrypt(
@@ -1234,6 +1372,14 @@ contain certificates, CRLs, and much more. PKCS7 files commonly have a ``p7b``,
 
         :param data: The data to be encrypted.
         :type data: :term:`bytes-like`
+
+    .. method:: set_content_encryption_algorithm(content_encryption_algorithm)
+
+        :param content_encryption_algorithm: the content encryption algorithm to use.
+            Only AES is supported, with a key size of 128 or 256 bits.
+        :type content_encryption_algorithm:
+            :class:`~cryptography.hazmat.primitives.ciphers.algorithms.AES128`
+            or :class:`~cryptography.hazmat.primitives.ciphers.algorithms.AES256`
 
     .. method:: add_recipient(certificate)
 
@@ -1261,28 +1407,204 @@ contain certificates, CRLs, and much more. PKCS7 files commonly have a ``p7b``,
             this operation only
             :attr:`~cryptography.hazmat.primitives.serialization.pkcs7.PKCS7Options.Text` and
             :attr:`~cryptography.hazmat.primitives.serialization.pkcs7.PKCS7Options.Binary`
-            are supported.
+            are supported, and cannot be used at the same time.
 
         :returns bytes: The enveloped PKCS7 message.
+
+.. function:: pkcs7_decrypt_der(data, certificate, private_key, options)
+
+    .. versionadded:: 44.0.0
+
+    .. doctest::
+
+        >>> from cryptography import x509
+        >>> from cryptography.hazmat.primitives import serialization
+        >>> from cryptography.hazmat.primitives.serialization import pkcs7
+        >>> cert = x509.load_pem_x509_certificate(ca_cert_rsa)
+        >>> key = serialization.load_pem_private_key(ca_key_rsa, None)
+        >>> options = [pkcs7.PKCS7Options.Text]
+        >>> enveloped = pkcs7.PKCS7EnvelopeBuilder().set_data(
+        ...     b"data to encrypt"
+        ... ).add_recipient(
+        ...     cert
+        ... ).encrypt(
+        ...     serialization.Encoding.DER, options
+        ... )
+        >>> pkcs7.pkcs7_decrypt_der(enveloped, cert, key, options)
+        b'data to encrypt'
+
+    Deserialize and decrypt a DER-encoded PKCS7 message. PKCS7 (or S/MIME) has multiple versions,
+    but this supports a subset of :rfc:`5751`, also known as S/MIME Version 3.2.
+
+    :param data: The data, encoded in DER format.
+    :type data: bytes
+
+    :param certificate: A :class:`~cryptography.x509.Certificate` for an intended
+        recipient of the encrypted message. Only certificates with public RSA keys
+        are currently supported.
+
+    :param private_key: The :class:`~cryptography.hazmat.primitives.asymmetric.rsa.RSAPrivateKey`
+        associated with the certificate provided. Only private RSA keys are supported.
+
+    :param options: A list of
+        :class:`~cryptography.hazmat.primitives.serialization.pkcs7.PKCS7Options`. For
+        this operation only
+        :attr:`~cryptography.hazmat.primitives.serialization.pkcs7.PKCS7Options.Text` is supported.
+
+    :returns bytes: The decrypted message.
+
+    :raises ValueError: If the recipient certificate does not match any of the encrypted keys in the
+        PKCS7 data.
+
+    :raises cryptography.exceptions.UnsupportedAlgorithm: If any of the PKCS7 keys are encrypted
+        with another algorithm than RSA with PKCS1 v1.5 padding.
+
+    :raises cryptography.exceptions.UnsupportedAlgorithm: If the content is encrypted with
+        another algorithm than AES (with key sizes 128 and 256), with CBC mode.
+
+    :raises ValueError: If the PKCS7 data does not contain encrypted content.
+
+    :raises ValueError: If the PKCS7 data is not of the enveloped data type.
+
+.. function:: pkcs7_decrypt_pem(data, certificate, private_key, options)
+
+    .. versionadded:: 44.0.0
+
+    .. doctest::
+
+        >>> from cryptography import x509
+        >>> from cryptography.hazmat.primitives import serialization
+        >>> from cryptography.hazmat.primitives.serialization import pkcs7
+        >>> cert = x509.load_pem_x509_certificate(ca_cert_rsa)
+        >>> key = serialization.load_pem_private_key(ca_key_rsa, None)
+        >>> options = [pkcs7.PKCS7Options.Text]
+        >>> enveloped = pkcs7.PKCS7EnvelopeBuilder().set_data(
+        ...     b"data to encrypt"
+        ... ).add_recipient(
+        ...     cert
+        ... ).encrypt(
+        ...     serialization.Encoding.PEM, options
+        ... )
+        >>> pkcs7.pkcs7_decrypt_pem(enveloped, cert, key, options)
+        b'data to encrypt'
+
+    Deserialize and decrypt a PEM-encoded PKCS7E message. PKCS7 (or S/MIME) has multiple versions,
+    but this supports a subset of :rfc:`5751`, also known as S/MIME Version 3.2.
+
+    :param data: The data, encoded in PEM format.
+    :type data: bytes
+
+    :param certificate: A :class:`~cryptography.x509.Certificate` for an intended
+        recipient of the encrypted message. Only certificates with public RSA keys
+        are currently supported.
+
+    :param private_key: The :class:`~cryptography.hazmat.primitives.asymmetric.rsa.RSAPrivateKey`
+        associated with the certificate provided. Only private RSA keys are supported.
+
+    :param options: A list of
+        :class:`~cryptography.hazmat.primitives.serialization.pkcs7.PKCS7Options`. For
+        this operation only
+        :attr:`~cryptography.hazmat.primitives.serialization.pkcs7.PKCS7Options.Text` is supported.
+
+    :returns bytes: The decrypted message.
+
+    :raises ValueError: If the PEM data does not have the PKCS7 tag.
+
+    :raises ValueError: If the recipient certificate does not match any of the encrypted keys in the
+        PKCS7 data.
+
+    :raises cryptography.exceptions.UnsupportedAlgorithm: If any of the PKCS7 keys are encrypted
+        with another algorithm than RSA with PKCS1 v1.5 padding.
+
+    :raises cryptography.exceptions.UnsupportedAlgorithm: If the content is encrypted with
+        another algorithm than AES (with key sizes 128 and 256), with CBC mode.
+
+    :raises ValueError: If the PKCS7 data does not contain encrypted content.
+
+    :raises ValueError: If the PKCS7 data is not of the enveloped data type.
+
+.. function:: pkcs7_decrypt_smime(data, certificate, private_key, options)
+
+    .. versionadded:: 44.0.0
+
+    .. doctest::
+
+        >>> from cryptography import x509
+        >>> from cryptography.hazmat.primitives import serialization
+        >>> from cryptography.hazmat.primitives.serialization import pkcs7
+        >>> cert = x509.load_pem_x509_certificate(ca_cert_rsa)
+        >>> key = serialization.load_pem_private_key(ca_key_rsa, None)
+        >>> options = [pkcs7.PKCS7Options.Text]
+        >>> enveloped = pkcs7.PKCS7EnvelopeBuilder().set_data(
+        ...     b"data to encrypt"
+        ... ).add_recipient(
+        ...     cert
+        ... ).encrypt(
+        ...     serialization.Encoding.SMIME, options
+        ... )
+        >>> pkcs7.pkcs7_decrypt_smime(enveloped, cert, key, options)
+        b'data to encrypt'
+
+    Deserialize and decrypt a S/MIME-encoded PKCS7 message. PKCS7 (or S/MIME) has multiple versions,
+    but this supports a subset of :rfc:`5751`, also known as S/MIME Version 3.2.
+
+    :param data: The data. It should be in S/MIME format, meaning MIME with content type
+        ``application/pkcs7-mime`` or ``application/x-pkcs7-mime``.
+    :type data: bytes
+
+    :param certificate: A :class:`~cryptography.x509.Certificate` for an intended
+        recipient of the encrypted message. Only certificates with public RSA keys
+        are currently supported.
+
+    :param private_key: The :class:`~cryptography.hazmat.primitives.asymmetric.rsa.RSAPrivateKey`
+        associated with the certificate provided. Only private RSA keys are supported.
+
+    :param options: A list of
+        :class:`~cryptography.hazmat.primitives.serialization.pkcs7.PKCS7Options`. For
+        this operation only
+        :attr:`~cryptography.hazmat.primitives.serialization.pkcs7.PKCS7Options.Text` is supported.
+
+    :returns bytes: The decrypted message.
+
+    :raises ValueError: If the S/MIME data is not one of the correct content types.
+
+    :raises ValueError: If the recipient certificate does not match any of the encrypted keys in the
+        PKCS7 data.
+
+    :raises cryptography.exceptions.UnsupportedAlgorithm: If any of the PKCS7 keys are encrypted
+        with another algorithm than RSA with PKCS1 v1.5 padding.
+
+    :raises cryptography.exceptions.UnsupportedAlgorithm: If the content is encrypted with
+        another algorithm than AES (with key sizes 128 and 256), with CBC mode.
+
+    :raises ValueError: If the PKCS7 data does not contain encrypted content.
+
+    :raises ValueError: If the PKCS7 data is not of the enveloped data type.
 
 
 .. class:: PKCS7Options
 
     .. versionadded:: 3.2
 
-    An enumeration of options for PKCS7 signature and envelope creation.
+    An enumeration of options for PKCS7 signature, envelope creation, and decryption.
 
     .. attribute:: Text
 
-        The text option adds ``text/plain`` headers to an S/MIME message when
+        For signing, the text option adds ``text/plain`` headers to an S/MIME message when
         serializing to
         :attr:`~cryptography.hazmat.primitives.serialization.Encoding.SMIME`.
         This option is disallowed with ``DER`` serialization.
+        For envelope creation, it adds ``text/plain`` headers to the encrypted content, regardless
+        of the specified encoding.
+        For envelope decryption, it parses the decrypted content headers (if any), checks if the
+        content type is 'text/plain', then removes all headers (keeping only the payload) of this
+        decrypted content. If there is no header, or the content type is not "text/plain", it
+        raises an error.
 
     .. attribute:: Binary
 
-        Signing normally converts line endings (LF to CRLF). When
-        passing this option the data will not be converted.
+        Signature and envelope creation normally converts line endings (LF to CRLF). When
+        passing this option, the data will not be converted.
 
     .. attribute:: DetachedSignature
 

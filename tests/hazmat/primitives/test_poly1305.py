@@ -133,8 +133,7 @@ class TestPoly1305:
 
     def test_buffer_protocol(self, backend):
         key = binascii.unhexlify(
-            b"1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cb"
-            b"c207075c0"
+            b"1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0"
         )
         msg = binascii.unhexlify(
             b"2754776173206272696c6c69672c20616e642074686520736c69746"
@@ -143,13 +142,13 @@ class TestPoly1305:
             b"52074686520626f726f676f7665732c0a416e6420746865206d6f6d"
             b"65207261746873206f757467726162652e"
         )
-        key = bytearray(key)
-        poly = Poly1305(key)
+        buffer_key = bytearray(key)
+        poly = Poly1305(buffer_key)
         poly.update(bytearray(msg))
         assert poly.finalize() == binascii.unhexlify(
             b"4541669a7eaaee61e708dc7cbcc5eb62"
         )
 
-        assert Poly1305.generate_tag(key, msg) == binascii.unhexlify(
+        assert Poly1305.generate_tag(buffer_key, msg) == binascii.unhexlify(
             b"4541669a7eaaee61e708dc7cbcc5eb62"
         )

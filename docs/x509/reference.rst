@@ -223,6 +223,9 @@ Loading Certificates
 
     :returns: An instance of :class:`~cryptography.x509.Certificate`.
 
+    :raises ValueError: If a certificate cannot be parsed from the provided
+        data.
+
 Loading Certificate Revocation Lists
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -883,6 +886,11 @@ X.509 Certificate Builder
 
     .. versionadded:: 1.0
 
+    .. note::
+       All methods, except :meth:`sign`, return a **new** CertificateBuilder
+       instance with the corresponding updated value. They do not modify the
+       existing builder in place.
+
     .. doctest::
 
         >>> from cryptography import x509
@@ -929,6 +937,8 @@ X.509 Certificate Builder
         :param name: The :class:`~cryptography.x509.Name` that describes the
             issuer (CA).
 
+        :return: A new :class:`CertificateBuilder` with the updated issuer name.
+
     .. method:: subject_name(name)
 
         Sets the subject's distinguished name.
@@ -936,12 +946,16 @@ X.509 Certificate Builder
         :param name: The :class:`~cryptography.x509.Name` that describes the
             subject.
 
+        :return: A new :class:`CertificateBuilder` with the updated subject name.
+
     .. method:: public_key(public_key)
 
         Sets the subject's public key.
 
         :param public_key: The subject's public key. This can be one of
             :data:`~cryptography.hazmat.primitives.asymmetric.types.CertificatePublicKeyTypes`.
+
+        :return: A new :class:`CertificateBuilder` with the updated public key.
 
     .. method:: serial_number(serial_number)
 
@@ -958,6 +972,8 @@ X.509 Certificate Builder
             revocation checking). Users should consider using
             :func:`~cryptography.x509.random_serial_number` when possible.
 
+        :return: A new :class:`CertificateBuilder` with the updated serial number.
+
     .. method:: not_valid_before(time)
 
         Sets the certificate's activation time.  This is the time from which
@@ -967,6 +983,8 @@ X.509 Certificate Builder
         :param time: The :class:`datetime.datetime` object (in UTC) that marks the
             activation time for the certificate.  The certificate may not be
             trusted clients if it is used before this time.
+
+        :return: A new :class:`CertificateBuilder` with the updated activation time.
 
     .. method:: not_valid_after(time)
 
@@ -978,6 +996,8 @@ X.509 Certificate Builder
             expiration time for the certificate.  The certificate may not be
             trusted clients if it is used after this time.
 
+        :return: A new :class:`CertificateBuilder` with the updated expiration time.
+
     .. method:: add_extension(extval, critical)
 
         Adds an X.509 extension to the certificate.
@@ -988,7 +1008,9 @@ X.509 Certificate Builder
         :param critical: Set to ``True`` if the extension must be understood and
              handled by whoever reads the certificate.
 
-    .. method:: sign(private_key, algorithm, *, rsa_padding=None)
+        :return: A new :class:`CertificateBuilder` with the additional extension.
+
+    .. method:: sign(private_key, algorithm, *, rsa_padding=None, ecdsa_deterministic=None)
 
         Sign the certificate using the CA's private key.
 
@@ -1022,6 +1044,20 @@ X.509 Certificate Builder
         :type rsa_padding: ``None``,
             :class:`~cryptography.hazmat.primitives.asymmetric.padding.PKCS1v15`,
             or :class:`~cryptography.hazmat.primitives.asymmetric.padding.PSS`
+
+        :param ecdsa_deterministic:
+
+            .. versionadded:: 45.0.0
+
+            This is a keyword-only argument. If ``private_key`` is an
+            ``EllipticCurvePrivateKey`` then this can be set to true to
+            use deterministic signing, as defined in :rfc:`6979`. This only
+            impacts the signing process, verification is not affected
+            (the verification process is the same for both
+            deterministic and non-deterministic signed messages). All other
+            key types **must** not pass a value other than ``None``.
+
+        :type ecdsa_deterministic: ``None``, ``bool``
 
         :returns: :class:`~cryptography.x509.Certificate`
 
@@ -1263,7 +1299,7 @@ X.509 Certificate Revocation List Builder
             obtained from an existing CRL or created with
             :class:`~cryptography.x509.RevokedCertificateBuilder`.
 
-    .. method:: sign(private_key, algorithm, *, rsa_padding=None)
+    .. method:: sign(private_key, algorithm, *, rsa_padding=None, ecdsa_deterministic=None)
 
         Sign this CRL using the CA's private key.
 
@@ -1297,6 +1333,20 @@ X.509 Certificate Revocation List Builder
         :type rsa_padding: ``None``,
             :class:`~cryptography.hazmat.primitives.asymmetric.padding.PKCS1v15`,
             or :class:`~cryptography.hazmat.primitives.asymmetric.padding.PSS`
+
+        :param ecdsa_deterministic:
+
+            .. versionadded:: 45.0.0
+
+            This is a keyword-only argument. If ``private_key`` is an
+            ``EllipticCurvePrivateKey`` then this can be set to true to
+            use deterministic signing, as defined in :rfc:`6979`. This only
+            impacts the signing process, verification is not affected
+            (the verification process is the same for both
+            deterministic and non-deterministic signed messages). All other
+            key types **must** not pass a value other than ``None``.
+
+        :type ecdsa_deterministic: ``None``, ``bool``
 
         :returns: :class:`~cryptography.x509.CertificateRevocationList`
 
@@ -1476,7 +1526,7 @@ X.509 CSR (Certificate Signing Request) Builder Object
         :returns: A new
             :class:`~cryptography.x509.CertificateSigningRequestBuilder`.
 
-    .. method:: sign(private_key, algorithm, *, rsa_padding=None)
+    .. method:: sign(private_key, algorithm, *, rsa_padding=None, ecdsa_deterministic=None)
 
         :param private_key: The private key
             that will be used to sign the request.  When the request is
@@ -1510,6 +1560,20 @@ X.509 CSR (Certificate Signing Request) Builder Object
         :type rsa_padding: ``None``,
             :class:`~cryptography.hazmat.primitives.asymmetric.padding.PKCS1v15`,
             or :class:`~cryptography.hazmat.primitives.asymmetric.padding.PSS`
+
+        :param ecdsa_deterministic:
+
+            .. versionadded:: 45.0.0
+
+            This is a keyword-only argument. If ``private_key`` is an
+            ``EllipticCurvePrivateKey`` then this can be set to true to
+            use deterministic signing, as defined in :rfc:`6979`. This only
+            impacts the signing process, verification is not affected
+            (the verification process is the same for both
+            deterministic and non-deterministic signed messages). All other
+            key types **must** not pass a value other than ``None``.
+
+        :type ecdsa_deterministic: ``None``, ``bool``
 
         :returns: A new
             :class:`~cryptography.x509.CertificateSigningRequest`.
@@ -2228,7 +2292,7 @@ X.509 Extensions
     public key corresponding to the private key used to sign a certificate.
     This extension is typically used to assist in determining the appropriate
     certificate chain. For more information about generation and use of this
-    extension see `RFC 5280 section 4.2.1.1`_.
+    extension see :rfc:`5280#section-4.2.1.1`.
 
     .. attribute:: oid
 
@@ -2486,6 +2550,44 @@ X.509 Extensions
         :type: :class:`ObjectIdentifier`
 
         Returns :attr:`~cryptography.x509.oid.ExtensionOID.PRECERT_POISON`.
+
+
+.. class:: PrivateKeyUsagePeriod(not_before, not_after)
+    :canonical: cryptography.x509.extensions.PrivateKeyUsagePeriod
+
+    .. versionadded:: 45.0.0
+
+   This extension defines the period during which the private key corresponding
+   to the certificate's public key may be used. Either ``not_before`` or ``not_after``
+   must be provided.
+
+   :param not_before: A :class:`datetime.datetime` object or ``None``. Specifies
+                      the earliest time the private key can be used.
+   :param not_after: A :class:`datetime.datetime` object or ``None``. Specifies
+                     the latest time the private key can be used.
+
+   .. attribute:: not_before
+
+      A :class:`datetime.datetime` object or ``None``. Represents the earliest
+      time the private key can be used.
+
+   .. attribute:: not_after
+
+      A :class:`datetime.datetime` object or ``None``. Represents the latest
+      time the private key can be used.
+
+   .. method:: public_bytes()
+
+      Returns the encoded bytes of the extension.
+
+      :return: A ``bytes`` object containing the encoded extension.
+
+    .. attribute:: oid
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns
+        :attr:`~cryptography.x509.oid.ExtensionOID.PRIVATE_KEY_USAGE_PERIOD`.
 
 
 .. class:: SignedCertificateTimestamps(scts)
@@ -2995,6 +3097,28 @@ X.509 Extensions
         Returns
         :attr:`~cryptography.x509.oid.ExtensionOID.CERTIFICATE_POLICIES`.
 
+.. class:: Admissions(authority, admissions)
+    :canonical: cryptography.x509.extensions.Admissions
+
+    .. versionadded:: 44.0.0
+
+    The admissions extension contains information on registration and professional admission,
+    as specified by `Common PKI v2`_.
+    It is an iterable, containing one or more :class:`~cryptography.x509.Admission` instances.
+
+    .. attribute:: oid
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns :attr:`~cryptography.x509.oid.ExtensionOID.ADMISSIONS`.
+
+    .. attribute:: authority
+
+        :type: :class:`GeneralName` or None
+
+        An optional identifier of the institution who granted the admissions. This serves as the default value
+        for the admission authority in a single :class:`~cryptography.x509.Admission` if it is not specified there.
+
 Certificate Policies Classes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -3064,6 +3188,98 @@ These classes may be present within a :class:`CertificatePolicies` instance.
         :type: list
 
         A list of integers.
+
+Admissions Classes
+~~~~~~~~~~~~~~~~~~
+
+These classes may be present within an :class:`Admissions` instance.
+
+.. class:: Admission(admission_authority, naming_authority, profession_infos)
+    :canonical: cryptography.x509.extensions.Admission
+
+    .. versionadded:: 44.0.0
+
+    Contains professional information and optionally the authorization information.
+
+    .. attribute:: admission_authority
+
+        :type: :class:`GeneralName` or None
+
+        An optional identifier of the institution who granted the admission.
+
+    .. attribute:: naming_authority
+
+        :type: :class:`NamingAuthority` or None
+
+        An optional identifier of the institution who is administering the information of the professions in this admission.
+        This serves as the default value for the naming authority in a single :class:`~cryptography.x509.ProfessionInfo`
+        if it is not specified there.
+
+    .. attribute:: profession_infos
+
+        :type: list
+
+        An information on the professions that are part of this admission. This is a list of :class:`ProfessionInfo` objects.
+
+.. class:: ProfessionInfo(naming_authority, profession_items, profession_oids, registration_number, add_profession_info)
+    :canonical: cryptography.x509.extensions.ProfessionInfo
+
+    .. versionadded:: 44.0.0
+
+    Contains the information for a single profession in the admission.
+
+    .. attribute:: naming_authority
+
+        :type: :class:`NamingAuthority` or None
+
+        An optional identifier of the institution who is administering the information of this profession.
+
+    .. attribute:: profession_items
+
+        :type: list
+
+        One or more text strings identifying the profession.
+
+    .. attribute:: profession_oids
+
+        :type: list or None
+
+        An optional list of :class:`ObjectIdentifier` elements. Each element in the list corresponds to the resp.
+        text string in the :attr:`profession_items` list.
+
+    .. attribute:: registration_number
+
+        :type: str or None
+
+        An optional registration number for the profession.
+
+    .. attribute:: add_profession_info
+
+        :type: bytes or None
+
+        Optional additional application-specific information in DER-encoded form.
+
+.. class:: NamingAuthority(id, url, text)
+    :canonical: cryptography.x509.extensions.NamingAuthority
+
+    .. versionadded:: 44.0.0
+
+    Identifies an institution who is responsible for the administration of title registers in an admission. The naming
+    authority can be identified by an object identifier in the field :attr:`id`, by the text in the field :attr:`text`,
+    by a URL address in the field :attr:`url`, or by a combination of them.
+
+    .. attribute:: id
+
+        :type: :class:`ObjectIdentifier` or None
+
+    .. attribute:: url
+
+        :type: str or None
+
+    .. attribute:: text
+
+        :type: str or None
+
 
 .. _crl_entry_extensions:
 
@@ -3623,7 +3839,17 @@ instances. The following common OIDs are available as constants.
         Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.17"``. This
         is used to denote that a certificate may be assigned to an IPSEC SA,
         and can be used by the assignee to initiate an IPSec Internet Key
-        Exchange. For more information see :rfc:`4945`.
+        Exchange (IKE). For more information see :rfc:`4945`.
+
+    .. attribute:: BUNDLE_SECURITY
+
+        .. versionadded:: 45.0.0
+
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.35"``. This
+        is used to denote that a certificate is used by a Bundle Protocol
+        Node to secure data either in transit (e.g. via TLS/TCPCL) or at
+        rest (e.g. via BPSec).
+        For more information see :rfc:`9172` and :rfc:`9174`.
 
     .. attribute:: CERTIFICATE_TRANSPARENCY
 
@@ -3633,6 +3859,70 @@ instances. The following common OIDs are available as constants.
         is used to denote that a certificate may be used as a pre-certificate
         signing certificate for Certificate Transparency log operation
         purposes. For more information see :rfc:`6962`.
+
+
+.. class:: OtherNameFormOID
+    :canonical: cryptography.hazmat._oid.OtherNameFormOID
+
+    .. versionadded:: 45.0.0
+
+    .. attribute:: PERMANENT_IDENTIFIER
+
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.8.3"``.
+        This is used to correlate multiple certificates which relate to
+        the same entity, as identified by this Other Name value.
+        The Other Name value is encoded as sequence of optional
+        UTF-8 value and optional OID assigner.
+        For more information see :rfc:`4043`.
+
+    .. attribute:: HW_MODULE_NAME
+
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.8.4"``.
+        This is used to identify hardware module components when
+        protecting firmware packages.
+        The Other Name value is encoded as sequence of OID hardware-type
+        and octet-string serial number.
+        For more information see :rfc:`4108`.
+
+    .. attribute:: DNS_SRV
+
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.8.7"``.
+        This is used to identify service names using qualified DNS name
+        of the form ``_Service.Name``.
+        The Other Name value is encoded as IA5 text.
+        For more information see :rfc:`4985`.
+
+    .. attribute:: NAI_REALM
+
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.8.8"``.
+        This is used to identify realms for RADIUS dynamic peer discovery
+        using Network Access Identifier (NAI) values.
+        The Other Name value is encoded as UTF-8 text.
+        For more information see :rfc:`7585`.
+
+    .. attribute:: SMTP_UTF8_MAILBOX
+
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.8.9"``.
+        This is used to identify an internationalized email address associated
+        with an entity.
+        The Other Name value is encoded as UTF-8 text.
+        For more information see :rfc:`9598`.
+
+    .. attribute:: ACP_NODE_NAME
+
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.8.10"``.
+        This is used to identify a single node within an
+        Autonomic Control Plane (ACP).
+        The Other Name value is encoded as IA5 text.
+        For more information see :rfc:`8994`.
+
+    .. attribute:: BUNDLE_EID
+
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.8.11"``.
+        This is used to contain the text form of an endpoint identifier (EID)
+        for the Bundle Protocol Version 7.
+        The Other Name value is encoded as IA5 text.
+        For more information see :rfc:`9171` and :rfc:`9174`.
 
 
 .. class:: AuthorityInformationAccessOID
@@ -3795,6 +4085,12 @@ instances. The following common OIDs are available as constants.
 
         Corresponds to the dotted string ``"1.3.6.1.4.1.11129.2.4.3"``.
 
+    .. attribute:: PRIVATE_KEY_USAGE_PERIOD
+
+        .. versionadded:: 45.0.0
+
+        Corresponds to the dotted string ``"2.5.29.16"``.
+
     .. attribute:: SIGNED_CERTIFICATE_TIMESTAMPS
 
         .. versionadded:: 3.0
@@ -3830,6 +4126,12 @@ instances. The following common OIDs are available as constants.
         .. versionadded:: 41.0.0
 
         Corresponds to the dotted string ``"1.3.6.1.4.1.311.21.7"``.
+
+    .. attribute:: ADMISSIONS
+
+        .. versionadded:: 44.0.0
+
+        Corresponds to the dotted string ``"1.3.36.8.3.3"``.
 
 
 .. class:: CRLEntryExtensionOID
@@ -4013,9 +4315,8 @@ Exceptions
         :type: int
 
         The integer value of the unsupported type. The complete list of
-        types can be found in `RFC 5280 section 4.2.1.6`_.
+        types can be found in :rfc:`5280#section-4.2.1.6`.
 
 
-.. _`RFC 5280 section 4.2.1.1`: https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1
-.. _`RFC 5280 section 4.2.1.6`: https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.6
 .. _`CABForum Guidelines`: https://cabforum.org/baseline-requirements-documents/
+.. _`Common PKI v2`: https://www.elektronische-vertrauensdienste.de/EVD/SharedDocuments/Downloads/QES/Common_PKI_v2.0_02.pdf

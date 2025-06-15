@@ -8,7 +8,7 @@ use std::str::FromStr;
 use asn1::IA5String;
 
 // RFC 2822 3.2.4
-static ATEXT_CHARS: &str = "!#$%&'*+-/=?^_`{|}~";
+const ATEXT_CHARS: &str = "!#$%&'*+-/=?^_`{|}~";
 
 /// Represents a DNS name can be used in X.509 name matching.
 ///
@@ -136,6 +136,19 @@ impl<'a> DNSPattern<'a> {
                 // No parent means we have a single label; wildcards cannot match single labels.
                 None => false,
             },
+        }
+    }
+
+    /// Returns the inner `DNSName` within this `DNSPattern`, e.g.
+    /// `foo.com` for `*.foo.com` or `example.com` for `example.com`.
+    ///
+    /// This API must not be used to bypass pattern matching; it exists
+    /// solely to enable checks that only require the inner name, such
+    /// as Name Constraint checks.
+    pub fn inner_name(&self) -> &DNSName<'a> {
+        match self {
+            DNSPattern::Exact(dnsname) => dnsname,
+            DNSPattern::Wildcard(dnsname) => dnsname,
         }
     }
 }
@@ -400,9 +413,8 @@ impl<'a> RFC822Constraint<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::types::{DNSConstraint, DNSName, DNSPattern, IPAddress, IPConstraint, RFC822Name};
-
     use super::RFC822Constraint;
+    use crate::types::{DNSConstraint, DNSName, DNSPattern, IPAddress, IPConstraint, RFC822Name};
 
     #[test]
     fn test_dnsname_debug_trait() {

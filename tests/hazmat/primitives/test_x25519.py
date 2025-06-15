@@ -6,6 +6,7 @@
 import binascii
 import copy
 import os
+import textwrap
 
 import pytest
 
@@ -62,12 +63,10 @@ class TestX25519Exchange:
 
     def test_rfc7748_1000_iteration(self, backend):
         old_private = private = public = binascii.unhexlify(
-            b"090000000000000000000000000000000000000000000000000000000000"
-            b"0000"
+            b"0900000000000000000000000000000000000000000000000000000000000000"
         )
         shared_key = binascii.unhexlify(
-            b"684cf59ba83309552800ef566f2f4d3c1c3887c49360e3875f2eb94d9953"
-            b"2c51"
+            b"684cf59ba83309552800ef566f2f4d3c1c3887c49360e3875f2eb94d99532c51"
         )
         private_key = X25519PrivateKey.from_private_bytes(private)
         public_key = X25519PublicKey.from_public_bytes(public)
@@ -322,6 +321,15 @@ class TestX25519Exchange:
         loaded_key = load_func(serialized, passwd, backend)
         assert isinstance(loaded_key, X25519PrivateKey)
 
+    def test_invalid_public_key_pem(self):
+        with pytest.raises(ValueError):
+            serialization.load_pem_public_key(
+                textwrap.dedent("""
+            -----BEGIN PUBLIC KEY-----
+            MCswBQYDK2VuAyIA////////////////////////////////////////////
+            -----END PUBLIC KEY-----""").encode()
+            )
+
     def test_buffer_protocol(self, backend):
         private_bytes = bytearray(os.urandom(32))
         key = X25519PrivateKey.from_private_bytes(private_bytes)
@@ -366,6 +374,22 @@ def test_public_key_copy(backend):
         mode="rb",
     )
     key1 = serialization.load_der_private_key(key_bytes, None).public_key()
+    key2 = copy.copy(key1)
+
+    assert key1 == key2
+
+
+@pytest.mark.supported(
+    only_if=lambda backend: backend.x25519_supported(),
+    skip_message="Requires OpenSSL with X25519 support",
+)
+def test_private_key_copy(backend):
+    key_bytes = load_vectors_from_file(
+        os.path.join("asymmetric", "X25519", "x25519-pkcs8.der"),
+        lambda derfile: derfile.read(),
+        mode="rb",
+    )
+    key1 = serialization.load_der_private_key(key_bytes, None)
     key2 = copy.copy(key1)
 
     assert key1 == key2

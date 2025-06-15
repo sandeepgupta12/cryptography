@@ -25,22 +25,6 @@ from .test_aead import large_mmap
 def test_deprecated_ciphers_import_with_warning():
     with pytest.warns(utils.CryptographyDeprecationWarning):
         from cryptography.hazmat.primitives.ciphers.algorithms import (
-            Blowfish,  # noqa: F401
-        )
-    with pytest.warns(utils.CryptographyDeprecationWarning):
-        from cryptography.hazmat.primitives.ciphers.algorithms import (
-            CAST5,  # noqa: F401
-        )
-    with pytest.warns(utils.CryptographyDeprecationWarning):
-        from cryptography.hazmat.primitives.ciphers.algorithms import (
-            IDEA,  # noqa: F401
-        )
-    with pytest.warns(utils.CryptographyDeprecationWarning):
-        from cryptography.hazmat.primitives.ciphers.algorithms import (
-            SEED,  # noqa: F401
-        )
-    with pytest.warns(utils.CryptographyDeprecationWarning):
-        from cryptography.hazmat.primitives.ciphers.algorithms import (
             ARC4,  # noqa: F401
         )
     with pytest.warns(utils.CryptographyDeprecationWarning):
@@ -249,6 +233,15 @@ class TestCipherUpdateInto:
         buf = bytearray(5)
         with pytest.raises(ValueError):
             encryptor.update_into(b"testing", buf)
+
+    def test_update_with_invalid_type(self, backend):
+        key = b"\x00" * 16
+        c = ciphers.Cipher(AES(key), modes.GCM(b"\x00" * 12), backend)
+        encryptor = c.encryptor()
+        with pytest.raises(TypeError, match="bytestring instead?"):
+            encryptor.update("hello")  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="instance to a buffer"):
+            encryptor.update(object)  # type: ignore[arg-type]
 
 
 @pytest.mark.skipif(

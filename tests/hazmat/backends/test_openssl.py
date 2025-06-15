@@ -4,7 +4,6 @@
 
 
 import itertools
-import os
 
 import pytest
 
@@ -22,10 +21,7 @@ from ...doubles import (
     DummyMode,
 )
 from ...hazmat.primitives.test_rsa import rsa_key_2048
-from ...utils import (
-    load_vectors_from_file,
-    raises_unsupported_algorithm,
-)
+from ...utils import raises_unsupported_algorithm
 
 # Make ruff happy since we're importing fixtures that pytest patches in as
 # func args
@@ -54,7 +50,9 @@ class TestOpenSSL:
         to be true for every OpenSSL-alike.
         """
         version = backend.openssl_version_text()
-        assert version.startswith(("OpenSSL", "LibreSSL", "BoringSSL"))
+        assert version.startswith(
+            ("OpenSSL", "LibreSSL", "BoringSSL", "AWS-LC")
+        )
 
         # Verify the correspondence between these two. And do it in a way that
         # ensures coverage.
@@ -67,6 +65,11 @@ class TestOpenSSL:
             assert rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
         if rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL:
             assert version.startswith("BoringSSL")
+
+        if version.startswith("AWS-LC"):
+            assert rust_openssl.CRYPTOGRAPHY_IS_AWSLC
+        if rust_openssl.CRYPTOGRAPHY_IS_AWSLC:
+            assert version.startswith("AWS-LC")
 
     def test_openssl_version_number(self):
         assert backend.openssl_version_number() > 0
@@ -126,7 +129,10 @@ class TestOpenSSLRSA:
     def test_rsa_padding_supported_pss(self):
         assert (
             backend.rsa_padding_supported(
-                padding.PSS(mgf=padding.MGF1(hashes.SHA1()), salt_length=0)
+                padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA256()),
+                    salt_length=padding.PSS.DIGEST_LENGTH,
+                )
             )
             is True
         )
@@ -200,27 +206,6 @@ class TestOpenSSLRSA:
             )
 
 
-class TestOpenSSLSerializationWithOpenSSL:
-    def test_very_long_pem_serialization_password(self):
-        password = b"x" * 1025
-
-        with pytest.raises(ValueError, match="Passwords longer than"):
-            load_vectors_from_file(
-                os.path.join(
-                    "asymmetric",
-                    "Traditional_OpenSSL_Serialization",
-                    "key1.pem",
-                ),
-                lambda pemfile: (
-                    serialization.load_pem_private_key(
-                        pemfile.read().encode(),
-                        password,
-                        unsafe_skip_rsa_key_validation=False,
-                    )
-                ),
-            )
-
-
 class TestRSAPEMSerialization:
     def test_password_length_limit(self, rsa_key_2048):
         password = b"x" * 1024
@@ -230,35 +215,3 @@ class TestRSAPEMSerialization:
                 serialization.PrivateFormat.PKCS8,
                 serialization.BestAvailableEncryption(password),
             )
-
-
-@pytest.mark.skipif(
-    backend._lib.Cryptography_HAS_EVP_PKEY_DHX == 1,
-    reason="Requires OpenSSL without EVP_PKEY_DHX",
-)
-@pytest.mark.supported(
-    only_if=lambda backend: backend.dh_supported(),
-    skip_message="Requires DH support",
-)
-class TestOpenSSLDHSerialization:
-    @pytest.mark.parametrize(
-        ("key_path", "loader_func"),
-        [
-            (
-                os.path.join("asymmetric", "DH", "dhkey_rfc5114_2.pem"),
-                serialization.load_pem_private_key,
-            ),
-            (
-                os.path.join("asymmetric", "DH", "dhkey_rfc5114_2.der"),
-                serialization.load_der_private_key,
-            ),
-        ],
-    )
-    def test_private_load_dhx_unsupported(
-        self, key_path, loader_func, backend
-    ):
-        key_bytes = load_vectors_from_file(
-            key_path, lambda pemfile: pemfile.read(), mode="rb"
-        )
-        with pytest.raises(ValueError):
-            loader_func(key_bytes, None, backend)

@@ -4,9 +4,9 @@
 
 use std::collections::HashSet;
 
-use crate::common;
-use crate::crl;
-use crate::name;
+use crate::certificate::SerialNumber;
+use crate::common::Asn1Operation;
+use crate::{common, crl, name};
 
 pub struct DuplicateExtensionsError(pub asn1::ObjectIdentifier);
 
@@ -93,48 +93,41 @@ pub struct AccessDescription<'a> {
     pub access_location: name::GeneralName<'a>,
 }
 
-pub type SequenceOfAccessDescriptions<'a> = common::Asn1ReadableOrWritable<
-    asn1::SequenceOf<'a, AccessDescription<'a>>,
-    asn1::SequenceOfWriter<'a, AccessDescription<'a>, Vec<AccessDescription<'a>>>,
->;
+pub type SequenceOfAccessDescriptions<'a, Op> =
+    <Op as Asn1Operation>::SequenceOfVec<'a, AccessDescription<'a>>;
 
 // Needed due to clippy type complexity warning.
-type SequenceOfPolicyQualifiers<'a> = common::Asn1ReadableOrWritable<
-    asn1::SequenceOf<'a, PolicyQualifierInfo<'a>>,
-    asn1::SequenceOfWriter<'a, PolicyQualifierInfo<'a>, Vec<PolicyQualifierInfo<'a>>>,
->;
+type SequenceOfPolicyQualifiers<'a, Op> =
+    <Op as Asn1Operation>::SequenceOfVec<'a, PolicyQualifierInfo<'a, Op>>;
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
-pub struct PolicyInformation<'a> {
+pub struct PolicyInformation<'a, Op: Asn1Operation + 'a> {
     pub policy_identifier: asn1::ObjectIdentifier,
-    pub policy_qualifiers: Option<SequenceOfPolicyQualifiers<'a>>,
+    pub policy_qualifiers: Option<SequenceOfPolicyQualifiers<'a, Op>>,
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
-pub struct PolicyQualifierInfo<'a> {
+pub struct PolicyQualifierInfo<'a, Op: Asn1Operation> {
     pub policy_qualifier_id: asn1::ObjectIdentifier,
-    pub qualifier: Qualifier<'a>,
+    pub qualifier: Qualifier<'a, Op>,
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
-pub enum Qualifier<'a> {
+pub enum Qualifier<'a, Op: Asn1Operation> {
     CpsUri(asn1::IA5String<'a>),
-    UserNotice(UserNotice<'a>),
+    UserNotice(UserNotice<'a, Op>),
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
-pub struct UserNotice<'a> {
-    pub notice_ref: Option<NoticeReference<'a>>,
+pub struct UserNotice<'a, Op: Asn1Operation> {
+    pub notice_ref: Option<NoticeReference<'a, Op>>,
     pub explicit_text: Option<DisplayText<'a>>,
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
-pub struct NoticeReference<'a> {
+pub struct NoticeReference<'a, Op: Asn1Operation> {
     pub organization: DisplayText<'a>,
-    pub notice_numbers: common::Asn1ReadableOrWritable<
-        asn1::SequenceOf<'a, asn1::BigUint<'a>>,
-        asn1::SequenceOfWriter<'a, asn1::BigUint<'a>, Vec<asn1::BigUint<'a>>>,
-    >,
+    pub notice_numbers: Op::SequenceOfVec<'a, asn1::BigUint<'a>>,
 }
 
 // DisplayText also allows BMPString, which we currently do not support.
@@ -148,19 +141,15 @@ pub enum DisplayText<'a> {
     BmpString(asn1::BMPString<'a>),
 }
 
-// Needed due to clippy type complexity warning.
-pub type SequenceOfSubtrees<'a> = common::Asn1ReadableOrWritable<
-    asn1::SequenceOf<'a, GeneralSubtree<'a>>,
-    asn1::SequenceOfWriter<'a, GeneralSubtree<'a>, Vec<GeneralSubtree<'a>>>,
->;
+pub type SequenceOfSubtrees<'a, Op> = <Op as Asn1Operation>::SequenceOfVec<'a, GeneralSubtree<'a>>;
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
-pub struct NameConstraints<'a> {
+pub struct NameConstraints<'a, Op: Asn1Operation> {
     #[implicit(0)]
-    pub permitted_subtrees: Option<SequenceOfSubtrees<'a>>,
+    pub permitted_subtrees: Option<SequenceOfSubtrees<'a, Op>>,
 
     #[implicit(1)]
-    pub excluded_subtrees: Option<SequenceOfSubtrees<'a>>,
+    pub excluded_subtrees: Option<SequenceOfSubtrees<'a, Op>>,
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
@@ -183,43 +172,34 @@ pub struct MSCertificateTemplate {
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
-pub struct DistributionPoint<'a> {
+pub struct DistributionPoint<'a, Op: Asn1Operation> {
     #[explicit(0)]
-    pub distribution_point: Option<DistributionPointName<'a>>,
+    pub distribution_point: Option<DistributionPointName<'a, Op>>,
 
     #[implicit(1)]
-    pub reasons: crl::ReasonFlags<'a>,
+    pub reasons: crl::ReasonFlags<'a, Op>,
 
     #[implicit(2)]
-    pub crl_issuer: Option<name::SequenceOfGeneralName<'a>>,
+    pub crl_issuer: Option<name::SequenceOfGeneralName<'a, Op>>,
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
-pub enum DistributionPointName<'a> {
+pub enum DistributionPointName<'a, Op: Asn1Operation> {
     #[implicit(0)]
-    FullName(name::SequenceOfGeneralName<'a>),
+    FullName(name::SequenceOfGeneralName<'a, Op>),
 
     #[implicit(1)]
-    NameRelativeToCRLIssuer(
-        common::Asn1ReadableOrWritable<
-            asn1::SetOf<'a, common::AttributeTypeValue<'a>>,
-            asn1::SetOfWriter<
-                'a,
-                common::AttributeTypeValue<'a>,
-                Vec<common::AttributeTypeValue<'a>>,
-            >,
-        >,
-    ),
+    NameRelativeToCRLIssuer(Op::SetOfVec<'a, common::AttributeTypeValue<'a>>),
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
-pub struct AuthorityKeyIdentifier<'a> {
+pub struct AuthorityKeyIdentifier<'a, Op: Asn1Operation> {
     #[implicit(0)]
     pub key_identifier: Option<&'a [u8]>,
     #[implicit(1)]
-    pub authority_cert_issuer: Option<name::SequenceOfGeneralName<'a>>,
+    pub authority_cert_issuer: Option<name::SequenceOfGeneralName<'a, Op>>,
     #[implicit(2)]
-    pub authority_cert_serial_number: Option<asn1::BigUint<'a>>,
+    pub authority_cert_serial_number: Option<SerialNumber<'a>>,
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
@@ -283,6 +263,51 @@ impl KeyUsage<'_> {
     pub fn decipher_only(&self) -> bool {
         self.0.has_bit_set(8)
     }
+}
+
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct NamingAuthority<'a> {
+    pub id: Option<asn1::ObjectIdentifier>,
+    pub url: Option<asn1::IA5String<'a>>,
+    pub text: Option<DisplayText<'a>>,
+}
+
+type SequenceOfDisplayTexts<'a, Op> = <Op as Asn1Operation>::SequenceOfVec<'a, DisplayText<'a>>;
+
+type SequenceOfObjectIdentifiers<'a, Op> =
+    <Op as Asn1Operation>::SequenceOfVec<'a, asn1::ObjectIdentifier>;
+
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct ProfessionInfo<'a, Op: Asn1Operation> {
+    #[explicit(0)]
+    pub naming_authority: Option<NamingAuthority<'a>>,
+    pub profession_items: SequenceOfDisplayTexts<'a, Op>,
+    pub profession_oids: Option<SequenceOfObjectIdentifiers<'a, Op>>,
+    pub registration_number: Option<asn1::PrintableString<'a>>,
+    pub add_profession_info: Option<&'a [u8]>,
+}
+
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct Admission<'a, Op: Asn1Operation + 'a> {
+    #[explicit(0)]
+    pub admission_authority: Option<name::GeneralName<'a>>,
+    #[explicit(1)]
+    pub naming_authority: Option<NamingAuthority<'a>>,
+    pub profession_infos: Op::SequenceOfVec<'a, ProfessionInfo<'a, Op>>,
+}
+
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct Admissions<'a, Op: Asn1Operation> {
+    pub admission_authority: Option<name::GeneralName<'a>>,
+    pub contents_of_admissions: Op::SequenceOfVec<'a, Admission<'a, Op>>,
+}
+
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct PrivateKeyUsagePeriod {
+    #[implicit(0)]
+    pub not_before: Option<asn1::X509GeneralizedTime>,
+    #[implicit(1)]
+    pub not_after: Option<asn1::X509GeneralizedTime>,
 }
 
 #[cfg(test)]

@@ -2,10 +2,7 @@
 // 2.0, and the BSD License. See the LICENSE file in the root of this repository
 // for complete details.
 
-use crate::common;
-use crate::extensions;
-use crate::name;
-use crate::oid;
+use crate::{common, extensions, name, oid};
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
 pub struct Csr<'a> {
@@ -44,7 +41,7 @@ impl CertificationRequestInfo<'_> {
 pub fn check_attribute_length<'a>(
     values: asn1::SetOf<'a, asn1::Tlv<'a>>,
 ) -> Result<(), asn1::ParseError> {
-    if values.count() > 1 {
+    if values.count() != 1 {
         // TODO: We should raise a more specific error here
         // Only single-valued attributes are supported
         Err(asn1::ParseError::new(asn1::ParseErrorKind::InvalidValue))

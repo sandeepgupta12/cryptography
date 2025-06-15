@@ -10,7 +10,12 @@ import os
 import pytest
 
 from cryptography import utils
-from cryptography.exceptions import InvalidSignature, InvalidTag
+from cryptography.exceptions import (
+    InvalidSignature,
+    InvalidTag,
+    UnsupportedAlgorithm,
+)
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import (
     dsa,
     ec,
@@ -32,6 +37,7 @@ from cryptography.hazmat.primitives.serialization import (
     load_ssh_public_identity,
     load_ssh_public_key,
     ssh,
+    ssh_key_fingerprint,
 )
 
 from ...doubles import DummyKeySerializationEncryption
@@ -154,17 +160,17 @@ class TestOpenSSHSerialization:
                 load_ssh_public_key(new_pub, backend)
 
     @pytest.mark.parametrize(
-        ("key_file",),
+        "key_file",
         [
-            ("rsa-nopsw.key",),
-            ("rsa-psw.key",),
-            ("dsa-nopsw.key",),
-            ("dsa-psw.key",),
-            ("ecdsa-nopsw.key",),
-            ("ecdsa-psw.key",),
-            ("ed25519-nopsw.key",),
-            ("ed25519-psw.key",),
-            ("ed25519-aesgcm-psw.key",),
+            "rsa-nopsw.key",
+            "rsa-psw.key",
+            "dsa-nopsw.key",
+            "dsa-psw.key",
+            "ecdsa-nopsw.key",
+            "ecdsa-psw.key",
+            "ed25519-nopsw.key",
+            "ed25519-psw.key",
+            "ed25519-aesgcm-psw.key",
         ],
     )
     def test_load_ssh_private_key(self, key_file, backend):
@@ -254,6 +260,26 @@ class TestOpenSSHSerialization:
         # make sure multi-line base64 is used
         maxline = max(map(len, priv_data2.split(b"\n")))
         assert maxline < 80
+
+    @pytest.mark.supported(
+        only_if=lambda backend: backend.ed25519_supported(),
+        skip_message="Requires Ed25519 support",
+    )
+    @pytest.mark.parametrize(
+        "key_file",
+        [
+            "sk-ecdsa-nopsw.key",
+            "sk-ed25519-nopsw.key",
+        ],
+    )
+    def test_load_unsupported_ssh_private_key(self, key_file):
+        data = load_vectors_from_file(
+            os.path.join("asymmetric", "OpenSSH", key_file),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        with pytest.raises(UnsupportedAlgorithm):
+            load_ssh_private_key(data, None)
 
     @pytest.mark.supported(
         only_if=lambda backend: backend.ed25519_supported(),
@@ -351,7 +377,7 @@ class TestOpenSSHSerialization:
             )
             assert pub1 == pub2
 
-            with pytest.raises(ValueError):
+            with pytest.raises(TypeError):
                 decoded_key = load_ssh_private_key(encdata, None, backend)
             with pytest.raises(ValueError):
                 decoded_key = load_ssh_private_key(encdata, b"wrong", backend)
@@ -586,6 +612,15 @@ class TestOpenSSHSerialization:
         data = self.make_file(pad=b"")
         with pytest.raises(ValueError):
             load_ssh_private_key(data, None, backend)
+
+    def test_ssh_errors_unencrypted_with_password(self):
+        data = load_vectors_from_file(
+            os.path.join("asymmetric", "OpenSSH", "rsa-nopsw.key"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        with pytest.raises(TypeError):
+            load_ssh_private_key(data, password=b"password")
 
     @pytest.mark.supported(
         only_if=lambda backend: backend.elliptic_curve_supported(
@@ -834,6 +869,16 @@ class TestRSASSHSerialization:
         expected = rsa.RSAPublicNumbers(expected_e, expected_n)
 
         assert numbers == expected
+
+    def test_unsafe_skip_rsa_key_validation(self):
+        key = load_vectors_from_file(
+            os.path.join("asymmetric", "OpenSSH", "rsa-nopsw.key"),
+            lambda f: load_ssh_private_key(
+                f.read(), password=None, unsafe_skip_rsa_key_validation=True
+            ),
+            mode="rb",
+        )
+        assert isinstance(key, rsa.RSAPrivateKey)
 
 
 class TestDSSSSHSerialization:
@@ -1240,7 +1285,7 @@ class TestSSHCertificate:
                 "these aren't bytes"  # type:ignore[arg-type]
             )
 
-    def test_load_ssh_public_key(self, backend):
+    def test_load_ssh_public_key(self):
         # This test will be removed when we implement load_ssh_public_key
         # in terms of load_ssh_public_identity. Needed for coverage now.
         pub_data = load_vectors_from_file(
@@ -1309,11 +1354,11 @@ class TestSSHCertificate:
         with pytest.raises(ValueError):
             load_ssh_public_identity(data)
 
-    def test_invalid_line_format(self, backend):
+    def test_invalid_line_format(self):
         with pytest.raises(ValueError):
             load_ssh_public_identity(b"whaaaaaaaaaaat")
 
-    def test_invalid_b64(self, backend):
+    def test_invalid_b64(self):
         with pytest.raises(ValueError):
             load_ssh_public_identity(b"ssh-rsa-cert-v01@openssh.com invalid")
 
@@ -1336,7 +1381,7 @@ class TestSSHCertificate:
                 b"+FxCje1GpAAAAIGf9opl4YoC5XcO92WMFEwUdE3jUQtBg3GRQlXBqFcoL"
             )
 
-    def test_loads_a_cert_empty_principals(self, backend):
+    def test_loads_a_cert_empty_principals(self):
         data = load_vectors_from_file(
             os.path.join(
                 "asymmetric",
@@ -1353,7 +1398,7 @@ class TestSSHCertificate:
         assert cert.extensions == {}
         assert cert.critical_options == {}
 
-    def test_public_bytes(self, backend):
+    def test_public_bytes(self):
         data = load_vectors_from_file(
             os.path.join(
                 "asymmetric",
@@ -1825,3 +1870,105 @@ class TestSSHSK:
     def test_load_application_valueerror(self):
         with pytest.raises(ValueError):
             ssh.load_application(self.ssh_str("hss:test"))
+
+
+class TestSSHKeyFingerprint:
+    @pytest.mark.supported(
+        only_if=lambda backend: backend.hash_supported(hashes.MD5()),
+        skip_message="Does not support MD5",
+    )
+    def test_ssh_key_fingerprint_rsa_md5(self):
+        ssh_key = load_vectors_from_file(
+            os.path.join("asymmetric", "OpenSSH", "rsa-nopsw.key.pub"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        public_key = load_ssh_public_key(ssh_key)
+        fingerprint = ssh_key_fingerprint(public_key, hashes.MD5())
+        assert fingerprint == b"\x10G\xc2es\xd6QIH\x0b\x81\x1f6\x04{R"
+
+    def test_ssh_key_fingerprint_rsa_sha256(self):
+        ssh_key = load_vectors_from_file(
+            os.path.join("asymmetric", "OpenSSH", "rsa-nopsw.key.pub"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        public_key = load_ssh_public_key(ssh_key)
+        fingerprint = ssh_key_fingerprint(public_key, hashes.SHA256())
+        assert fingerprint == (
+            b"\x80\xc0u\xcaV$\xfc\xeb\x04\xb1\x83]\x9a\x1e\xa1\x8d\x17"
+            b"\xc4d\xa23\xbek\xa4\xe9 \x92j\x89\xe6\xe8%"
+        )
+
+    @pytest.mark.supported(
+        only_if=lambda backend: backend.hash_supported(hashes.MD5())
+        and backend.ed25519_supported(),
+        skip_message="Does not support MD5 or Ed25519",
+    )
+    def test_ssh_key_fingerprint_ed25519_md5(self):
+        ssh_key = load_vectors_from_file(
+            os.path.join("asymmetric", "OpenSSH", "ed25519-nopsw.key.pub"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        public_key = load_ssh_public_key(ssh_key)
+        fingerprint = ssh_key_fingerprint(public_key, hashes.MD5())
+        assert fingerprint == b"\xe5R=\x01\x9e\xa0\xc1\xe9\x8c?L|\xc5\x94W\x85"
+
+    @pytest.mark.supported(
+        only_if=lambda backend: backend.ed25519_supported(),
+        skip_message="Ed25519 not supported",
+    )
+    def test_ssh_key_fingerprint_ed25519_sha256(self):
+        ssh_key = load_vectors_from_file(
+            os.path.join("asymmetric", "OpenSSH", "ed25519-nopsw.key.pub"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        public_key = load_ssh_public_key(ssh_key)
+        fingerprint = ssh_key_fingerprint(public_key, hashes.SHA256())
+        assert fingerprint == (
+            b'\x92z-\xb4\xaf\xf4,\x15\xa5\xc6\xf36p83\xcc"]CJi\x16V?\x879'
+            b"GZVS8\xb9"
+        )
+
+    @pytest.mark.supported(
+        only_if=lambda backend: backend.hash_supported(hashes.MD5()),
+        skip_message="Does not support MD5",
+    )
+    def test_ssh_key_fingerprint_ecdsa_md5(self):
+        ssh_key = load_vectors_from_file(
+            os.path.join("asymmetric", "OpenSSH", "ecdsa-nopsw.key.pub"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        public_key = load_ssh_public_key(ssh_key)
+        fingerprint = ssh_key_fingerprint(public_key, hashes.MD5())
+        assert fingerprint == b"\re\xf2-\xfaGq\x8c^\x16\xb05+\x06\x1b7"
+
+    def test_ssh_key_fingerprint_ecdsa_sha256(self):
+        ssh_key = load_vectors_from_file(
+            os.path.join("asymmetric", "OpenSSH", "ecdsa-nopsw.key.pub"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        public_key = load_ssh_public_key(ssh_key)
+        fingerprint = ssh_key_fingerprint(public_key, hashes.SHA256())
+        assert fingerprint == (
+            b"[\xa5\xab\xe9\xdf\r\xe5\x1er\xd6\xbc\xd9\x97\xc2\xf4\xdc"
+            b"\xd4\xe0\xaf\x17<i\xdc^\x11>\xc6\x91wIJ\xf5"
+        )
+
+    def test_ssh_key_fingerprint_unsupported_hash(self):
+        ssh_key = load_vectors_from_file(
+            os.path.join("asymmetric", "OpenSSH", "rsa-nopsw.key.pub"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        public_key = load_ssh_public_key(ssh_key)
+        with pytest.raises(TypeError):
+            ssh_key_fingerprint(public_key, hashes.SHA1())  # type: ignore[arg-type]
+
+    def test_ssh_key_fingerprint_unsupported_key(self):
+        with pytest.raises(ValueError):
+            ssh_key_fingerprint(object(), hashes.SHA256())  # type: ignore[arg-type]

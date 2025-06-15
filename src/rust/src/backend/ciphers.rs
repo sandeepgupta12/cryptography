@@ -2,13 +2,13 @@
 // 2.0, and the BSD License. See the LICENSE file in the root of this repository
 // for complete details.
 
+use pyo3::types::PyAnyMethods;
+use pyo3::IntoPyObject;
+
 use crate::backend::cipher_registry;
 use crate::buf::{CffiBuf, CffiMutBuf};
 use crate::error::{CryptographyError, CryptographyResult};
-use crate::exceptions;
-use crate::types;
-use pyo3::types::PyAnyMethods;
-use pyo3::IntoPy;
+use crate::{exceptions, types};
 
 pub(crate) struct CipherContext {
     ctx: openssl::cipher_ctx::CipherCtx,
@@ -160,7 +160,7 @@ impl CipherContext {
     ) -> CryptographyResult<pyo3::Bound<'p, pyo3::types::PyBytes>> {
         let mut buf = vec![0; data.len() + self.ctx.block_size()];
         let n = self.update_into(py, data, &mut buf)?;
-        Ok(pyo3::types::PyBytes::new_bound(py, &buf[..n]))
+        Ok(pyo3::types::PyBytes::new(py, &buf[..n]))
     }
 
     pub(crate) fn update_into(
@@ -224,7 +224,7 @@ impl CipherContext {
                 ),
             ))
         })?;
-        Ok(pyo3::types::PyBytes::new_bound(py, &out_buf[..n]))
+        Ok(pyo3::types::PyBytes::new(py, &out_buf[..n]))
     }
 }
 
@@ -359,7 +359,7 @@ impl PyAEADEncryptionContext {
         let result = ctx.finalize(py)?;
 
         // XXX: do not hard code 16
-        let tag = pyo3::types::PyBytes::new_bound_with(py, 16, |t| {
+        let tag = pyo3::types::PyBytes::new_with(py, 16, |t| {
             ctx.ctx.tag(t).map_err(CryptographyError::from)?;
             Ok(())
         })?;
@@ -495,16 +495,14 @@ impl PyAEADDecryptionContext {
         if tag.len() < min_tag_length {
             return Err(CryptographyError::from(
                 pyo3::exceptions::PyValueError::new_err(format!(
-                    "Authentication tag must be {} bytes or longer.",
-                    min_tag_length
+                    "Authentication tag must be {min_tag_length} bytes or longer.",
                 )),
             ));
         } else if tag.len() > 16 {
             return Err(CryptographyError::from(
-                pyo3::exceptions::PyValueError::new_err(format!(
-                    "Authentication tag cannot be more than {} bytes.",
-                    16
-                )),
+                pyo3::exceptions::PyValueError::new_err(
+                    "Authentication tag cannot be more than 16 bytes.",
+                ),
             ));
         }
 
@@ -520,11 +518,11 @@ impl PyAEADDecryptionContext {
 }
 
 #[pyo3::pyfunction]
-fn create_encryption_ctx(
-    py: pyo3::Python<'_>,
+fn create_encryption_ctx<'p>(
+    py: pyo3::Python<'p>,
     algorithm: pyo3::Bound<'_, pyo3::PyAny>,
     mode: pyo3::Bound<'_, pyo3::PyAny>,
-) -> CryptographyResult<pyo3::PyObject> {
+) -> CryptographyResult<pyo3::Bound<'p, pyo3::PyAny>> {
     let ctx = CipherContext::new(py, algorithm, mode.clone(), openssl::symm::Mode::Encrypt)?;
 
     if mode.is_instance(&types::MODE_WITH_AUTHENTICATION_TAG.get(py)?)? {
@@ -539,18 +537,21 @@ fn create_encryption_ctx(
                 .getattr(pyo3::intern!(py, "_MAX_AAD_BYTES"))?
                 .extract()?,
         }
-        .into_py(py))
+        .into_pyobject(py)?
+        .into_any())
     } else {
-        Ok(PyCipherContext { ctx: Some(ctx) }.into_py(py))
+        Ok(PyCipherContext { ctx: Some(ctx) }
+            .into_pyobject(py)?
+            .into_any())
     }
 }
 
 #[pyo3::pyfunction]
-fn create_decryption_ctx(
-    py: pyo3::Python<'_>,
+fn create_decryption_ctx<'p>(
+    py: pyo3::Python<'p>,
     algorithm: pyo3::Bound<'_, pyo3::PyAny>,
     mode: pyo3::Bound<'_, pyo3::PyAny>,
-) -> CryptographyResult<pyo3::PyObject> {
+) -> CryptographyResult<pyo3::Bound<'p, pyo3::PyAny>> {
     let mut ctx = CipherContext::new(py, algorithm, mode.clone(), openssl::symm::Mode::Decrypt)?;
 
     if mode.is_instance(&types::MODE_WITH_AUTHENTICATION_TAG.get(py)?)? {
@@ -571,9 +572,12 @@ fn create_decryption_ctx(
                 .getattr(pyo3::intern!(py, "_MAX_AAD_BYTES"))?
                 .extract()?,
         }
-        .into_py(py))
+        .into_pyobject(py)?
+        .into_any())
     } else {
-        Ok(PyCipherContext { ctx: Some(ctx) }.into_py(py))
+        Ok(PyCipherContext { ctx: Some(ctx) }
+            .into_pyobject(py)?
+            .into_any())
     }
 }
 

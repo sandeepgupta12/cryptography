@@ -2,13 +2,25 @@
 // 2.0, and the BSD License. See the LICENSE file in the root of this repository
 // for complete details.
 
-#[cfg(CRYPTOGRAPHY_OPENSSL_300_OR_GREATER)]
-use crate::{cvt, OpenSSLResult};
 #[cfg(all(
     CRYPTOGRAPHY_OPENSSL_300_OR_GREATER,
-    not(any(CRYPTOGRAPHY_IS_LIBRESSL, CRYPTOGRAPHY_IS_BORINGSSL))
+    not(any(
+        CRYPTOGRAPHY_IS_LIBRESSL,
+        CRYPTOGRAPHY_IS_BORINGSSL,
+        CRYPTOGRAPHY_IS_AWSLC
+    ))
 ))]
 use std::ptr;
+
+#[cfg(not(any(
+    CRYPTOGRAPHY_IS_LIBRESSL,
+    CRYPTOGRAPHY_IS_BORINGSSL,
+    CRYPTOGRAPHY_IS_AWSLC
+)))]
+use openssl_sys as ffi;
+
+#[cfg(CRYPTOGRAPHY_OPENSSL_300_OR_GREATER)]
+use crate::{cvt, OpenSSLResult};
 
 pub fn is_enabled() -> bool {
     cfg_if::cfg_if! {

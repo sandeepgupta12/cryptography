@@ -12,7 +12,7 @@ from binascii import hexlify
 
 import pytest
 
-from cryptography import exceptions, utils, x509
+from cryptography import exceptions, x509
 from cryptography.hazmat.bindings._rust import openssl as rust_openssl
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -64,6 +64,14 @@ def _skip_curve_unsupported(backend, curve: ec.EllipticCurve):
         )
 
 
+def _skip_deterministic_ecdsa_unsupported(backend):
+    if not backend.ecdsa_deterministic_supported():
+        pytest.skip(
+            f"ECDSA deterministic signing is not supported by this"
+            f" backend {backend}"
+        )
+
+
 def _skip_exchange_algorithm_unsupported(backend, algorithm, curve):
     if not backend.elliptic_curve_exchange_algorithm_supported(
         algorithm, curve
@@ -82,6 +90,7 @@ def test_get_curve_for_oid():
 class DummyCurve(ec.EllipticCurve):
     name = "dummy-curve"
     key_size = 1
+    group_order = 1
 
 
 class DummySignatureAlgorithm(ec.EllipticCurveSignatureAlgorithm):
@@ -138,10 +147,25 @@ def test_derive_point_at_infinity(backend):
     # BoringSSL rejects infinity points before it ever gets to us, so it
     # uses a more generic error message.
     match = (
-        "infinity" if not rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL else "Invalid"
+        "infinity"
+        if not (
+            rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
+            or rust_openssl.CRYPTOGRAPHY_IS_AWSLC
+        )
+        else "Invalid"
     )
     with pytest.raises(ValueError, match=match):
         ec.derive_private_key(q, ec.SECP256R1())
+
+
+def test_derive_point_invalid_key(backend):
+    curve = ec.SECP256R1()
+    _skip_curve_unsupported(backend, curve)
+    with pytest.raises(ValueError):
+        ec.derive_private_key(
+            0xE2563328DFABF68188606B91324281C1D58A4456431B09D510B35FECC9F307CA1822846FA2671371A9A81BAC0E35749D,
+            curve,
+        )
 
 
 def test_ec_numbers():
@@ -213,16 +237,6 @@ def test_ec_key_key_size(backend):
     key = ec.generate_private_key(curve, backend)
     assert key.key_size == 256
     assert key.public_key().key_size == 256
-
-
-def test_deprecated_generate_private_key_with_curve_class(backend):
-    # This test verifies that if you pass a curve _class_ instead of instance,
-    # you get a warning and then `key.curve` is still an instance.
-    _skip_curve_unsupported(backend, ec.SECP256R1())
-
-    with pytest.warns(utils.DeprecatedIn42):
-        key = ec.generate_private_key(ec.SECP256R1)  # type: ignore[arg-type]
-    assert isinstance(key.curve, ec.SECP256R1)
 
 
 class TestECWithNumbers:
@@ -319,6 +333,21 @@ class TestECDSAVectors:
             )
             is False
         )
+
+    @pytest.mark.skip_fips(
+        reason="Some FIPS curves aren't supported but work anyways"
+    )
+    @pytest.mark.parametrize("curve", ec._CURVE_TYPES.values())
+    def test_generate_unsupported_curve(
+        self, backend, curve: ec.EllipticCurve
+    ):
+        if backend.elliptic_curve_supported(curve):
+            return
+
+        with raises_unsupported_algorithm(
+            exceptions._Reasons.UNSUPPORTED_ELLIPTIC_CURVE
+        ):
+            ec.generate_private_key(curve)
 
     def test_unknown_signature_algoritm(self, backend):
         _skip_curve_unsupported(backend, ec.SECP192R1())
@@ -424,13 +453,7 @@ class TestECDSAVectors:
     def test_load_invalid_ec_key_from_pem(self, backend):
         _skip_curve_unsupported(backend, ec.SECP256R1())
 
-        # BoringSSL rejects infinity points before it ever gets to us, so it
-        # uses a more generic error message.
-        match = (
-            r"infinity|invalid form"
-            if not rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
-            else None
-        )
+        match = r"infinity|invalid form|Invalid key"
         with pytest.raises(ValueError, match=match):
             serialization.load_pem_public_key(
                 textwrap.dedent(
@@ -455,6 +478,18 @@ class TestECDSAVectors:
                 password=None,
                 backend=backend,
             )
+
+    def test_load_private_scalar_greater_than_order_pem(self, backend):
+        _skip_curve_unsupported(backend, ec.SECP256R1())
+
+        data = load_vectors_from_file(
+            os.path.join(
+                "asymmetric", "PKCS8", "ec-invalid-private-scalar.pem"
+            ),
+            lambda pemfile: pemfile.read().encode(),
+        )
+        with pytest.raises(ValueError):
+            serialization.load_pem_private_key(data, password=None)
 
     def test_signatures(self, backend, subtests):
         vectors = itertools.chain(
@@ -730,6 +765,17 @@ class TestECEquality:
             lambda pemfile: pemfile.read().encode(),
         )
         key1 = serialization.load_pem_private_key(key_bytes, None).public_key()
+        key2 = copy.copy(key1)
+
+        assert key1 == key2
+
+    def test_private_key_copy(self, backend):
+        _skip_curve_unsupported(backend, ec.SECP256R1())
+        key_bytes = load_vectors_from_file(
+            os.path.join("asymmetric", "PKCS8", "ec_private_key.pem"),
+            lambda pemfile: pemfile.read().encode(),
+        )
+        key1 = serialization.load_pem_private_key(key_bytes, None)
         key2 = copy.copy(key1)
 
         assert key1 == key2
@@ -1070,6 +1116,55 @@ class TestECSerialization:
         )
         assert isinstance(key, ec.EllipticCurvePublicKey)
         assert isinstance(key.curve, curve)
+
+    def test_pkcs8_inconsistent_curve(self):
+        # The curve can appear twice in a PKCS8 EC key, error if they're not
+        # consistent
+        data = load_vectors_from_file(
+            os.path.join("asymmetric", "PKCS8", "ec-inconsistent-curve.pem"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        with pytest.raises(ValueError):
+            serialization.load_pem_private_key(data, password=None)
+
+        data = load_vectors_from_file(
+            os.path.join("asymmetric", "PKCS8", "ec-inconsistent-curve2.pem"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        with pytest.raises(ValueError):
+            serialization.load_pem_private_key(data, password=None)
+
+    def test_pkcs8_consistent_curve(self):
+        # Like the above, but both the inner and outer curves match
+        key = load_vectors_from_file(
+            os.path.join("asymmetric", "PKCS8", "ec-consistent-curve.pem"),
+            lambda f: serialization.load_pem_private_key(
+                f.read(), password=None
+            ),
+            mode="rb",
+        )
+        assert isinstance(key, EllipticCurvePrivateKey)
+        assert isinstance(key.curve, ec.SECP256R1)
+
+    def test_load_private_key_missing_curve(self):
+        data = load_vectors_from_file(
+            os.path.join("asymmetric", "EC", "ec-missing-curve.pem"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        with pytest.raises(ValueError):
+            serialization.load_pem_private_key(data, password=None)
+
+    def test_load_private_key_invalid_version(self):
+        data = load_vectors_from_file(
+            os.path.join("asymmetric", "PKCS8", "ec-invalid-version.pem"),
+            lambda f: f.read(),
+            mode="rb",
+        )
+        with pytest.raises(ValueError):
+            serialization.load_pem_private_key(data, password=None)
 
 
 class TestEllipticCurvePEMPublicKeySerialization:

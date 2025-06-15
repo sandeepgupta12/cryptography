@@ -5,13 +5,13 @@
 use cryptography_x509::certificate::Certificate;
 
 pub struct VerificationCertificate<'a, B: CryptoOps> {
-    cert: Certificate<'a>,
+    cert: &'a Certificate<'a>,
     public_key: once_cell::sync::OnceCell<B::Key>,
     extra: B::CertificateExtra,
 }
 
 impl<'a, B: CryptoOps> VerificationCertificate<'a, B> {
-    pub fn new(cert: Certificate<'a>, extra: B::CertificateExtra) -> Self {
+    pub fn new(cert: &'a Certificate<'a>, extra: B::CertificateExtra) -> Self {
         VerificationCertificate {
             cert,
             extra,
@@ -20,7 +20,7 @@ impl<'a, B: CryptoOps> VerificationCertificate<'a, B> {
     }
 
     pub fn certificate(&self) -> &Certificate<'a> {
-        &self.cert
+        self.cert
     }
 
     pub fn public_key(&self, ops: &B) -> Result<&B::Key, B::Err> {
@@ -33,12 +33,34 @@ impl<'a, B: CryptoOps> VerificationCertificate<'a, B> {
     }
 }
 
+impl<B: CryptoOps> std::fmt::Debug for VerificationCertificate<'_, B> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VerificationCertificate").finish()
+    }
+}
+
 impl<B: CryptoOps> PartialEq for VerificationCertificate<'_, B> {
     fn eq(&self, other: &Self) -> bool {
         self.cert == other.cert
     }
 }
 impl<B: CryptoOps> Eq for VerificationCertificate<'_, B> {}
+
+impl<B: CryptoOps> Clone for VerificationCertificate<'_, B> {
+    fn clone(&self) -> Self {
+        Self {
+            cert: self.cert,
+            extra: B::clone_extra(&self.extra),
+            public_key: {
+                let cell = once_cell::sync::OnceCell::new();
+                if let Some(k) = self.public_key.get() {
+                    cell.set(B::clone_public_key(k)).ok().unwrap();
+                }
+                cell
+            },
+        }
+    }
+}
 
 pub trait CryptoOps {
     /// A public key type for this cryptographic backend.
@@ -50,6 +72,9 @@ pub trait CryptoOps {
     /// Extra data that's passed around with the certificate.
     type CertificateExtra;
 
+    /// Extra data that's accessible alongside the PolicyDefinition.
+    type PolicyExtra;
+
     /// Extracts the public key from the given `Certificate` in
     /// a `Key` format known by the cryptographic backend, or `None`
     /// if the key is malformed.
@@ -58,11 +83,20 @@ pub trait CryptoOps {
     /// Verifies the signature on `Certificate` using the given
     /// `Key`.
     fn verify_signed_by(&self, cert: &Certificate<'_>, key: &Self::Key) -> Result<(), Self::Err>;
+
+    // Makes a `clone` of `Key`
+    fn clone_public_key(extra: &Self::Key) -> Self::Key;
+
+    // Makes a `clone` of `CertificateExtra`
+    fn clone_extra(extra: &Self::CertificateExtra) -> Self::CertificateExtra;
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use cryptography_x509::certificate::Certificate;
+
+    use super::VerificationCertificate;
+    use crate::certificate::tests::PublicKeyErrorOps;
 
     pub(crate) fn v1_cert_pem() -> pem::Pem {
         pem::parse(
@@ -81,7 +115,20 @@ zl9HYIMxATFyqSiD9jsx
         .unwrap()
     }
 
+    pub(crate) fn epoch() -> asn1::DateTime {
+        asn1::DateTime::new(1970, 1, 1, 0, 0, 0).unwrap()
+    }
+
     pub(crate) fn cert(cert_pem: &pem::Pem) -> Certificate<'_> {
         asn1::parse_single(cert_pem.contents()).unwrap()
+    }
+
+    #[test]
+    fn test_verification_certificate_debug() {
+        let p = v1_cert_pem();
+        let c = cert(&p);
+        let vc = VerificationCertificate::<PublicKeyErrorOps>::new(&c, ());
+
+        assert_eq!(format!("{:?}", vc), "VerificationCertificate");
     }
 }

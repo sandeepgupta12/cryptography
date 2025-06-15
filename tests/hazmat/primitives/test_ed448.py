@@ -6,6 +6,7 @@
 import binascii
 import copy
 import os
+import textwrap
 
 import pytest
 
@@ -245,6 +246,15 @@ class TestEd448Signing:
                 serialization.Encoding.PEM, serialization.PublicFormat.Raw
             )
 
+    def test_invalid_public_key_pem(self):
+        with pytest.raises(ValueError):
+            serialization.load_pem_public_key(
+                textwrap.dedent("""
+            -----BEGIN PUBLIC KEY-----
+            MCswBQYDK2VxAyIA////////////////////////////////////////////
+            -----END PUBLIC KEY-----""").encode()
+            )
+
     def test_buffer_protocol(self, backend):
         private_bytes = os.urandom(57)
         key = Ed448PrivateKey.from_private_bytes(bytearray(private_bytes))
@@ -308,6 +318,22 @@ def test_public_key_copy(backend):
         mode="rb",
     )
     key1 = serialization.load_der_private_key(key_bytes, None).public_key()
+    key2 = copy.copy(key1)
+
+    assert key1 == key2
+
+
+@pytest.mark.supported(
+    only_if=lambda backend: backend.ed448_supported(),
+    skip_message="Requires OpenSSL with Ed448 support",
+)
+def test_private_key_copy(backend):
+    key_bytes = load_vectors_from_file(
+        os.path.join("asymmetric", "Ed448", "ed448-pkcs8.der"),
+        lambda derfile: derfile.read(),
+        mode="rb",
+    )
+    key1 = serialization.load_der_private_key(key_bytes, None)
     key2 = copy.copy(key1)
 
     assert key1 == key2

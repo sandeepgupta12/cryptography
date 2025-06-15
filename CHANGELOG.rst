@@ -1,18 +1,176 @@
 Changelog
 =========
 
-.. _v44-0-0:
+.. _v46-0-0:
 
-44.0.0 - `main`_
+46.0.0 - `main`_
 ~~~~~~~~~~~~~~~~
 
 .. note:: This version is not yet released and is under active development.
 
+* **BACKWARDS INCOMPATIBLE:** Support for Python 3.7 has been removed.
+* Removed the deprecated ``get_attribute_for_oid`` method on
+  :class:`~cryptography.x509.CertificateSigningRequest`. Users should use
+  :meth:`~cryptography.x509.Attributes.get_attribute_for_oid` instead.
+* Removed the deprecated ``CAST5``, ``SEED``, ``IDEA``, and ``Blowfish``
+  classes from the cipher module. These are still available in
+  :doc:`/hazmat/decrepit/index`.
+
+.. _v45-0-4:
+
+45.0.4 - 2025-06-09
+~~~~~~~~~~~~~~~~~~~
+
+* Fixed decrypting PKCS#8 files encrypted with SHA1-RC4. (This is not
+  considered secure, and is supported only for backwards compatibility.)
+
+.. _v45-0-3:
+
+45.0.3 - 2025-05-25
+~~~~~~~~~~~~~~~~~~~
+
+* Fixed decrypting PKCS#8 files encrypted with long salts (this impacts keys
+  encrypted by Bouncy Castle).
+* Fixed decrypting PKCS#8 files encrypted with DES-CBC-MD5. While wildly
+  insecure, this remains prevalent.
+
+.. _v45-0-2:
+
+45.0.2 - 2025-05-17
+~~~~~~~~~~~~~~~~~~~
+
+* Fixed using ``mypy`` with ``cryptography`` on older versions of Python.
+
+.. _v45-0-1:
+
+45.0.1 - 2025-05-17
+~~~~~~~~~~~~~~~~~~~
+
+* Updated Windows, macOS, and Linux wheels to be compiled with OpenSSL 3.5.0.
+
+.. _v45-0-0:
+
+45.0.0 - 2025-05-17 (YANKED)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Support for Python 3.7 is deprecated and will be removed in the next
+  ``cryptography`` release.
+* Updated the minimum supported Rust version (MSRV) to 1.74.0, from 1.65.0.
+* Added support for serialization of PKCS#12 Java truststores in
+  :func:`~cryptography.hazmat.primitives.serialization.pkcs12.serialize_java_truststore`
+* Added :meth:`~cryptography.hazmat.primitives.kdf.argon2.Argon2id.derive_phc_encoded` and
+  :meth:`~cryptography.hazmat.primitives.kdf.argon2.Argon2id.verify_phc_encoded` methods
+  to support password hashing in the PHC string format
+* Added support for PKCS7 decryption and encryption using AES-256 as the
+  content algorithm, in addition to AES-128.
+* **BACKWARDS INCOMPATIBLE:** Made SSH private key loading more consistent with
+  other private key loading:
+  :func:`~cryptography.hazmat.primitives.serialization.load_ssh_private_key`
+  now raises a ``TypeError`` if the key is unencrypted but a password is
+  provided (previously no exception was raised), and raises a ``TypeError`` if
+  the key is encrypted but no password is provided (previously a ``ValueError``
+  was raised).
+* Added ``__copy__`` to the
+  :class:`~cryptography.hazmat.primitives.asymmetric.ec.EllipticCurvePrivateKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.ec.EllipticCurvePublicKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.ed25519.Ed25519PublicKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.ed25519.Ed25519PrivateKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.ed448.Ed448PublicKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.ed448.Ed448PrivateKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.x25519.X25519PublicKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.x25519.X25519PrivateKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.x448.X448PublicKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.x448.X448PrivateKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.rsa.RSAPrivateKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.rsa.RSAPublicKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.dsa.DSAPrivateKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.dsa.DSAPublicKey`,
+  :class:`~cryptography.hazmat.primitives.asymmetric.dh.DHPrivateKey`, and
+  :class:`~cryptography.hazmat.primitives.asymmetric.dh.DHPublicKey`
+  abstract base classes.
+* We significantly refactored how private key loading (
+  :func:`~cryptography.hazmat.primitives.serialization.load_pem_private_key`
+  and
+  :func:`~cryptography.hazmat.primitives.serialization.load_der_private_key`)
+  works. This is intended to be backwards compatible for all well-formed keys,
+  therefore if you discover a key that now raises an exception, please file a
+  bug with instructions for reproducing.
+* Added ``unsafe_skip_rsa_key_validation`` keyword-argument to
+  :func:`~cryptography.hazmat.primitives.serialization.load_ssh_private_key`.
+* Added :class:`~cryptography.hazmat.primitives.hashes.XOFHash` to support
+  repeated :meth:`~cryptography.hazmat.primitives.hashes.XOFHash.squeeze`
+  operations on extendable output functions.
+* Added
+  :meth:`~cryptography.x509.ocsp.OCSPResponseBuilder.add_response_by_hash`
+  method to allow creating OCSP responses using certificate hash values rather
+  than full certificates.
+* Extended the :mod:`X.509 path validation <cryptography.x509.verification>` API to
+  support user-configured extension policies via the
+  :meth:`PolicyBuilder.extension_policies <cryptography.x509.verification.PolicyBuilder.extension_policies>` method.
+* Deprecated the ``subject``, ``verification_time`` and ``max_chain_depth``
+  properties on :class:`~cryptography.x509.verification.ClientVerifier` and
+  :class:`~cryptography.x509.verification.ServerVerifier` in favor of a new ``policy`` property.
+  These properties will be removed in the next release of ``cryptography``.
+* **BACKWARDS INCOMPATIBLE:** The
+  :meth:`VerifiedClient.subject <cryptography.x509.verification.VerifiedClient.subjects>`
+  property can now be `None` since a custom extension policy may allow certificates
+  without a Subject Alternative Name extension.
+* Changed the behavior when the OpenSSL 3 legacy provider fails to load.
+  Instead of raising an exception, a warning is now emitted. The
+  ``CRYPTOGRAPHY_OPENSSL_NO_LEGACY`` environment variable can still be used to
+  disable the legacy provider at runtime.
+* Added support for the ``CRYPTOGRAPHY_BUILD_OPENSSL_NO_LEGACY`` environment
+  variable during build time, which prevents the library from ever attempting
+  to load the legacy provider.
+* Added support for the :class:`~cryptography.x509.PrivateKeyUsagePeriod` X.509 extension.
+  This extension defines the period during which the private key corresponding
+  to the certificate's public key may be used.
+* Added support for compiling against `aws-lc`_.
+* Parsing X.509 structures now more strictly enforces that ``Name`` structures
+  do not have malformed ASN.1.
+* We now publish ``py311`` wheels that utilize the faster ``pyo3::buffer::PyBuffer``
+  interface, resulting in significantly improved performance for operations
+  involving small buffers.
+* Added :func:`~cryptography.hazmat.primitives.serialization.ssh_key_fingerprint`
+  for computing fingerprints of SSH public keys.
+* Added support for deterministic ECDSA signing via the new keyword-only argument
+  ``ecdsa_deterministic`` in :meth:`~cryptography.x509.CertificateBuilder.sign`,
+  :meth:`~cryptography.x509.CertificateRevocationListBuilder.sign`
+  and :meth:`~cryptography.x509.CertificateSigningRequestBuilder.sign`.
+
+.. _v44-0-3:
+
+44.0.3 - 2025-05-02
+~~~~~~~~~~~~~~~~~~~
+
+* Fixed compilation when using LibreSSL 4.1.0.
+
+.. _v44-0-2:
+
+44.0.2 - 2025-03-01
+~~~~~~~~~~~~~~~~~~~
+
+* We now build wheels for PyPy 3.11.
+
+.. _v44-0-1:
+
+44.0.1 - 2025-02-11
+~~~~~~~~~~~~~~~~~~~
+
+* Updated Windows, macOS, and Linux wheels to be compiled with OpenSSL 3.4.1.
+* We now build ``armv7l`` ``manylinux`` wheels and publish them to PyPI.
+* We now build ``manylinux_2_34`` wheels and publish them to PyPI.
+
+.. _v44-0-0:
+
+44.0.0 - 2024-11-27
+~~~~~~~~~~~~~~~~~~~
 
 * **BACKWARDS INCOMPATIBLE:** Dropped support for LibreSSL < 3.9.
 * Deprecated Python 3.7 support. Python 3.7 is no longer supported by the
   Python core team. Support for Python 3.7 will be removed in a future
   ``cryptography`` release.
+* Updated Windows, macOS, and Linux wheels to be compiled with OpenSSL 3.4.0.
 * macOS wheels are now built against the macOS 10.13 SDK. Users on older
   versions of macOS should upgrade, or they will need to build
   ``cryptography`` themselves.
@@ -23,6 +181,13 @@ Changelog
 * Relax the Authority Key Identifier requirements on root CA certificates
   during X.509 verification to allow fields permitted by :rfc:`5280` but
   forbidden by the CA/Browser BRs.
+* Added support for :class:`~cryptography.hazmat.primitives.kdf.argon2.Argon2id`
+  when using OpenSSL 3.2.0+.
+* Added support for the :class:`~cryptography.x509.Admissions` certificate extension.
+* Added basic support for PKCS7 decryption (including S/MIME 3.2) via
+  :func:`~cryptography.hazmat.primitives.serialization.pkcs7.pkcs7_decrypt_der`,
+  :func:`~cryptography.hazmat.primitives.serialization.pkcs7.pkcs7_decrypt_pem`, and
+  :func:`~cryptography.hazmat.primitives.serialization.pkcs7.pkcs7_decrypt_smime`.
 
 .. _v43-0-3:
 
@@ -62,10 +227,7 @@ Changelog
   now emits ASN.1 that more closely follows the recommendations in :rfc:`2315`.
 * Added new :doc:`/hazmat/decrepit/index` module which contains outdated and
   insecure cryptographic primitives.
-  :class:`~cryptography.hazmat.primitives.ciphers.algorithms.CAST5`,
-  :class:`~cryptography.hazmat.primitives.ciphers.algorithms.SEED`,
-  :class:`~cryptography.hazmat.primitives.ciphers.algorithms.IDEA`, and
-  :class:`~cryptography.hazmat.primitives.ciphers.algorithms.Blowfish`, which were
+  ``CAST5``, ``SEED``, ``IDEA``, and ``Blowfish``, which were
   deprecated in 37.0.0, have been added to this module. They will be removed
   from the ``cipher`` module in 45.0.0.
 * Moved :class:`~cryptography.hazmat.primitives.ciphers.algorithms.TripleDES`
@@ -666,11 +828,7 @@ Changelog
   ``pip`` will typically get a wheel and not need Rust installed, but check
   :doc:`/installation` for documentation on installing a newer ``rustc`` if
   required.
-* Deprecated
-  :class:`~cryptography.hazmat.primitives.ciphers.algorithms.CAST5`,
-  :class:`~cryptography.hazmat.primitives.ciphers.algorithms.SEED`,
-  :class:`~cryptography.hazmat.primitives.ciphers.algorithms.IDEA`, and
-  :class:`~cryptography.hazmat.primitives.ciphers.algorithms.Blowfish` because
+* Deprecated ``CAST5``, ``SEED``, ``IDEA``, and ``Blowfish`` because
   they are legacy algorithms with extremely low usage. These will be removed
   in a future version of ``cryptography``.
 * Added limited support for distinguished names containing a bit string.
@@ -2474,8 +2632,7 @@ Changelog
   to :class:`~cryptography.hazmat.primitives.asymmetric.padding.PSS`. It will
   be removed from ``MGF1`` in two releases per our :doc:`/api-stability`
   policy.
-* Added :class:`~cryptography.hazmat.primitives.ciphers.algorithms.SEED`
-  support.
+* Added ``SEED`` support.
 * Added :class:`~cryptography.hazmat.primitives.cmac.CMAC`.
 * Added decryption support to
   :class:`~cryptography.hazmat.primitives.asymmetric.rsa.RSAPrivateKey`
@@ -2494,8 +2651,7 @@ Changelog
 
 * Added :class:`~cryptography.hazmat.primitives.twofactor.hotp.HOTP`.
 * Added :class:`~cryptography.hazmat.primitives.twofactor.totp.TOTP`.
-* Added :class:`~cryptography.hazmat.primitives.ciphers.algorithms.IDEA`
-  support.
+* Added ``IDEA`` support.
 * Added signature support to
   :class:`~cryptography.hazmat.primitives.asymmetric.rsa.RSAPrivateKey`
   and verification support to
@@ -2537,8 +2693,7 @@ Changelog
 * Added :class:`~cryptography.hazmat.primitives.kdf.hkdf.HKDF`.
 * Added ``multibackend``.
 * Set default random for ``openssl`` to the OS random engine.
-* Added :class:`~cryptography.hazmat.primitives.ciphers.algorithms.CAST5`
-  (CAST-128) support.
+* Added ``CAST5`` (CAST-128) support.
 
 
 .. _v0-1:
@@ -2551,3 +2706,4 @@ Changelog
 .. _`as documented here`: https://docs.rs/openssl/latest/openssl/#automatic
 .. _`main`: https://github.com/pyca/cryptography/
 .. _`cffi`: https://cffi.readthedocs.io/
+.. _`aws-lc`: https://github.com/aws/aws-lc

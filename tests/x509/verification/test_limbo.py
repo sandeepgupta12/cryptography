@@ -2,6 +2,8 @@
 # 2.0, and the BSD License. See the LICENSE file in the root of this repository
 # for complete details.
 
+from __future__ import annotations
+
 import datetime
 import ipaddress
 import json
@@ -41,6 +43,8 @@ LIMBO_UNSUPPORTED_FEATURES = {
     "rfc5280-incompatible-with-webpki",
     # We do not support policy constraints.
     "has-policy-constraints",
+    # We don't yet support CRLs
+    "has-crl",
 }
 
 LIMBO_SKIP_TESTCASES = {

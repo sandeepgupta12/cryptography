@@ -2,10 +2,11 @@
 
 case "${1}" in
     install)
+        pip install uv
         git clone --depth=1 https://github.com/mitmproxy/mitmproxy
         cd mitmproxy
         git rev-parse HEAD
-        pip install -e ".[dev]"
+        uv pip install --system --requirements <(uv export --locked) -e .
         ;;
     run)
         cd mitmproxy

@@ -10,7 +10,8 @@ has support for implementing key rotation via :class:`MultiFernet`.
 
 .. class:: Fernet(key)
 
-    This class provides both encryption and decryption facilities.
+    This class provides both encryption and decryption facilities. This class
+    exhibits :term:`thread safety`.
 
     .. doctest::
 
@@ -221,7 +222,8 @@ Using passwords with Fernet
 
 It is possible to use passwords with Fernet. To do this, you need to run the
 password through a key derivation function such as
-:class:`~cryptography.hazmat.primitives.kdf.pbkdf2.PBKDF2HMAC`, bcrypt or
+:class:`~cryptography.hazmat.primitives.kdf.pbkdf2.PBKDF2HMAC`,
+:class:`~cryptography.hazmat.primitives.kdf.argon2.Argon2id` or
 :class:`~cryptography.hazmat.primitives.kdf.scrypt.Scrypt`.
 
 .. doctest::
@@ -237,7 +239,7 @@ password through a key derivation function such as
     ...     algorithm=hashes.SHA256(),
     ...     length=32,
     ...     salt=salt,
-    ...     iterations=480000,
+    ...     iterations=1_200_000,
     ... )
     >>> key = base64.urlsafe_b64encode(kdf.derive(password))
     >>> f = Fernet(key)
@@ -251,8 +253,8 @@ In this scheme, the salt has to be stored in a retrievable location in order
 to derive the same key from the password in the future.
 
 The iteration count used should be adjusted to be as high as your server can
-tolerate. A good default is at least 480,000 iterations, which is what `Django
-recommends as of December 2022`_.
+tolerate. A good default is at least 1,200,000 iterations, which is what `Django
+recommends as of January 2025`_.
 
 Implementation
 --------------
@@ -280,5 +282,5 @@ unsuitable for very large files at this time.
 
 
 .. _`Fernet`: https://github.com/fernet/spec/
-.. _`Django recommends as of December 2022`: https://github.com/django/django/blob/main/django/contrib/auth/hashers.py
+.. _`Django recommends as of January 2025`: https://github.com/django/django/blob/main/django/contrib/auth/hashers.py
 .. _`specification`: https://github.com/fernet/spec/blob/master/Spec.md

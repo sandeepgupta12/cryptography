@@ -28,6 +28,7 @@ committers
 conda
 CPython
 Cryptanalysis
+criticalities
 crypto
 cryptographic
 cryptographically
@@ -51,6 +52,7 @@ Diffie
 disambiguating
 Django
 Docstrings
+duplicative
 El
 Encodings
 endian
@@ -77,9 +79,13 @@ iOS
 iterable
 Kerberos
 Keychain
+KiB
+kibibyte
+kibibytes
 Koblitz
 Lange
 logins
+Mbed
 metadata
 MGF
 Monterey
@@ -89,6 +95,7 @@ namespace
 namespaces
 macOS
 naïve
+nilpotent
 Nonces
 nonces
 online
@@ -99,6 +106,7 @@ RHEL
 parsers
 Parsers
 PEM
+PHC
 pickleable
 plaintext
 Poly
@@ -115,6 +123,7 @@ pytest
 relicensed
 responder
 runtime
+RustCrypto
 Schneier
 scrypt
 serializer
@@ -131,9 +140,12 @@ testability
 Thawte
 timestamp
 timestamps
+TLS
 toolchain
 totient
 Trixie
+truststore
+truststores
 tunable
 Ubuntu
 unencrypted

@@ -150,7 +150,7 @@ jobs:
           path: wheelhouse/
 
   ppc64le:
-    runs-on: ["self-hosted", "ppc64le", "linux"]
+    runs-on: ubuntu-24.04-ppc64le
     container:
       image: ppc64le/python:${{ matrix.PYTHON.VERSION }}-slim-bullseye
     name: "ppc64le-wheel for python-${{ matrix.PYTHON.VERSION }}"

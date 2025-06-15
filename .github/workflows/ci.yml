@@ -150,7 +150,7 @@ jobs:
       - uses: ./.github/actions/upload-coverage
   
   ppc64le:
-    runs-on: ["self-hosted", "ppc64le", "linux"]
+    runs-on: ubuntu-24.04-ppc64le
     strategy:
       fail-fast: false
       matrix:

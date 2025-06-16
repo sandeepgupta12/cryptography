@@ -193,8 +193,8 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Install dependencies
         run: |
-          yum update -y -q
-          yum install -y -q --no-install-recommends curl build-essential libssl-dev libffi-dev python3-dev pkg-config cmake git unzip
+          yum update -y
+          yum install -y --no-install-recommends curl build-essential libssl-dev libffi-dev python3-dev pkg-config cmake git unzip
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y

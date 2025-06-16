@@ -10,12 +10,7 @@ import os
 
 import pytest
 
-from cryptography.exceptions import (
-    InvalidSignature,
-    UnsupportedAlgorithm,
-    _Reasons,
-)
-from cryptography.hazmat.bindings._rust import openssl as rust_openssl
+from cryptography.exceptions import InvalidSignature, _Reasons
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.asymmetric import utils as asym_utils
@@ -251,10 +246,6 @@ class TestRSA:
         assert public_num.n == public_num2.n
         assert public_num.e == public_num2.e
 
-    @pytest.mark.supported(
-        only_if=lambda backend: not rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL,
-        skip_message="Does not support RSA PSS loading",
-    )
     @pytest.mark.parametrize(
         "path",
         [
@@ -300,24 +291,6 @@ class TestRSA:
         with pytest.raises(InvalidSignature):
             key.verify(
                 b"badsig", b"whatever", padding.PKCS1v15(), hashes.SHA256()
-            )
-
-    @pytest.mark.supported(
-        only_if=lambda backend: rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL,
-        skip_message="Test requires a backend without RSA-PSS key support",
-    )
-    def test_load_pss_unsupported(self, backend):
-        # Key loading errors unfortunately have multiple paths so
-        # we need to allow ValueError and UnsupportedAlgorithm
-        with pytest.raises((UnsupportedAlgorithm, ValueError)):
-            load_vectors_from_file(
-                filename=os.path.join(
-                    "asymmetric", "PKCS8", "rsa_pss_2048.pem"
-                ),
-                loader=lambda p: serialization.load_pem_private_key(
-                    p.read(), password=None
-                ),
-                mode="rb",
             )
 
     @pytest.mark.parametrize(
@@ -530,11 +503,20 @@ class TestRSASignature:
                     hashes.SHA1(),
                 )
 
+    @pytest.mark.supported(
+        only_if=lambda backend: backend.rsa_padding_supported(
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH,
+            )
+        ),
+        skip_message="Does not support PSS with these parameters.",
+    )
     @pytest.mark.parametrize(
         "hash_alg",
         [hashes.SHA224(), hashes.SHA256(), hashes.SHA384(), hashes.SHA512()],
     )
-    def test_pss_signing_sha2(self, rsa_key_2048, hash_alg, backend):
+    def test_pss_sha2_max_length(self, rsa_key_2048, hash_alg, backend):
         _skip_pss_hash_algorithm_unsupported(backend, hash_alg)
         private_key = rsa_key_2048
         public_key = private_key.public_key()
@@ -1067,7 +1049,7 @@ class TestRSAVerification:
                 salt_length=padding.PSS.AUTO,
             )
         ),
-        skip_message="Does not support PSS.",
+        skip_message="Does not support PSS with these parameters.",
     )
     def test_pss_verify_auto_salt_length(
         self, rsa_key_2048: rsa.RSAPrivateKey, backend
@@ -1207,7 +1189,7 @@ class TestRSAVerification:
         public_key = private_key.public_key()
         pss_padding = padding.PSS(
             mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            salt_length=padding.PSS.MAX_LENGTH,
+            salt_length=padding.PSS.DIGEST_LENGTH,
         )
         signature = private_key.sign(b"sign me", pss_padding, hashes.SHA256())
 
@@ -2398,6 +2380,34 @@ class TestRSAPrimeFactorRecovery:
     def test_invalid_recover_prime_factors(self):
         with pytest.raises(ValueError):
             rsa.rsa_recover_prime_factors(34, 3, 7)
+        with pytest.raises(ValueError):
+            rsa.rsa_recover_prime_factors(629, 17, 20)
+        with pytest.raises(ValueError):
+            rsa.rsa_recover_prime_factors(21, 1, 1)
+        with pytest.raises(ValueError):
+            rsa.rsa_recover_prime_factors(21, -1, -1)
+
+
+class TestRSAPartial:
+    def test_rsa_partial(self):
+        # Toy RSA key values
+        p = 521
+        q = 491
+        e = 3
+        d = 16987
+        assert rsa.rsa_crt_iqmp(p, q) == 191
+        assert rsa.rsa_crt_dmp1(d, p) == 347
+        assert rsa.rsa_crt_dmq1(d, q) == 327
+        assert rsa.rsa_recover_private_exponent(e, p, q) == d
+
+        with pytest.raises(ValueError):
+            rsa.rsa_crt_iqmp(0, 0)
+        with pytest.raises(ValueError):
+            rsa.rsa_crt_dmp1(1, 1)
+        with pytest.raises(ValueError):
+            rsa.rsa_crt_dmq1(1, 1)
+        with pytest.raises(ValueError):
+            rsa.rsa_recover_private_exponent(0, 1, 0)
 
 
 class TestRSAPrivateKeySerialization:
@@ -2776,6 +2786,12 @@ class TestRSAPEMPublicKeySerialization:
 
     def test_public_key_copy(self, rsa_key_2048: rsa.RSAPrivateKey):
         key1 = rsa_key_2048.public_key()
+        key2 = copy.copy(key1)
+
+        assert key1 == key2
+
+    def test_private_key_copy(self, rsa_key_2048: rsa.RSAPrivateKey):
+        key1 = rsa_key_2048
         key2 = copy.copy(key1)
 
         assert key1 == key2

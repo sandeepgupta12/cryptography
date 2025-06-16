@@ -2,11 +2,13 @@
 // 2.0, and the BSD License. See the LICENSE file in the root of this repository
 // for complete details.
 
+use cryptography_crypto::constant_time;
+use pyo3::types::{PyAnyMethods, PyBytesMethods};
+
 use crate::backend::cipher_registry;
 use crate::buf::CffiBuf;
 use crate::error::{CryptographyError, CryptographyResult};
 use crate::{exceptions, types};
-use pyo3::types::{PyAnyMethods, PyBytesMethods};
 
 #[pyo3::pyclass(
     module = "cryptography.hazmat.bindings._rust.openssl.cmac",
@@ -77,13 +79,13 @@ impl Cmac {
     ) -> CryptographyResult<pyo3::Bound<'p, pyo3::types::PyBytes>> {
         let data = self.get_mut_ctx()?.finish()?;
         self.ctx = None;
-        Ok(pyo3::types::PyBytes::new_bound(py, &data))
+        Ok(pyo3::types::PyBytes::new(py, &data))
     }
 
     fn verify(&mut self, py: pyo3::Python<'_>, signature: &[u8]) -> CryptographyResult<()> {
         let actual = self.finalize(py)?;
         let actual = actual.as_bytes();
-        if actual.len() != signature.len() || !openssl::memcmp::eq(actual, signature) {
+        if !constant_time::bytes_eq(actual, signature) {
             return Err(CryptographyError::from(
                 exceptions::InvalidSignature::new_err("Signature did not match digest."),
             ));

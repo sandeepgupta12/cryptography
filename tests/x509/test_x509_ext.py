@@ -486,8 +486,7 @@ class TestNoticeReference:
         nr = x509.NoticeReference("org", [1, 3, 4])
 
         assert repr(nr) == (
-            "<NoticeReference(organization='org', notice_numbers=[1, 3, 4"
-            "])>"
+            "<NoticeReference(organization='org', notice_numbers=[1, 3, 4])>"
         )
 
     def test_eq(self):
@@ -1874,6 +1873,223 @@ class TestKeyUsageExtension:
         assert ku.key_agreement is False
         assert ku.key_cert_sign is True
         assert ku.crl_sign is True
+
+
+class TestPrivateKeyUsagePeriodExtension:
+    def test_not_validity(self):
+        with pytest.raises(TypeError):
+            x509.PrivateKeyUsagePeriod("notValidBefore", "notValidAfter")  # type:ignore[arg-type]
+
+    def test_repr(self):
+        period = x509.PrivateKeyUsagePeriod(
+            not_before=datetime.datetime(2012, 1, 1),
+            not_after=datetime.datetime(2013, 1, 1),
+        )
+        assert repr(period) == (
+            "<PrivateKeyUsagePeriod(not_before=2012-01-01 00:00:00, "
+            "not_after=2013-01-01 00:00:00)>"
+        )
+
+    def test_eq(self):
+        period = x509.PrivateKeyUsagePeriod(
+            not_before=datetime.datetime(2012, 1, 1),
+            not_after=datetime.datetime(2013, 1, 1),
+        )
+        period2 = x509.PrivateKeyUsagePeriod(
+            not_before=datetime.datetime(2012, 1, 1),
+            not_after=datetime.datetime(2013, 1, 1),
+        )
+        assert period == period2
+
+    def test_ne(self):
+        period = x509.PrivateKeyUsagePeriod(
+            not_before=datetime.datetime(2012, 1, 1),
+            not_after=datetime.datetime(2013, 1, 1),
+        )
+        period2 = x509.PrivateKeyUsagePeriod(
+            not_before=datetime.datetime(2012, 1, 1),
+            not_after=datetime.datetime(2014, 1, 1),
+        )
+        assert period != period2
+        assert period != object()
+
+    def test_hash(self):
+        period = x509.PrivateKeyUsagePeriod(
+            not_before=datetime.datetime(2012, 1, 1),
+            not_after=datetime.datetime(2013, 1, 1),
+        )
+        period2 = x509.PrivateKeyUsagePeriod(
+            not_before=datetime.datetime(2012, 1, 1),
+            not_after=datetime.datetime(2013, 1, 1),
+        )
+        period3 = x509.PrivateKeyUsagePeriod(
+            not_before=datetime.datetime(2012, 1, 1),
+            not_after=datetime.datetime(2014, 1, 1),
+        )
+        assert hash(period) == hash(period2)
+        assert hash(period) != hash(period3)
+
+    def test_both_none(self):
+        with pytest.raises(ValueError):
+            x509.PrivateKeyUsagePeriod(
+                not_before=None,
+                not_after=None,
+            )
+
+    def test_invalid_not_after_type(self):
+        with pytest.raises(TypeError):
+            x509.PrivateKeyUsagePeriod(
+                not_before=datetime.datetime(2012, 1, 1),
+                not_after="invalid type",  # type:ignore[arg-type]
+            )
+
+    def test_not_before_after_not_after(self):
+        with pytest.raises(
+            ValueError, match="not_before must be before not_after"
+        ):
+            x509.PrivateKeyUsagePeriod(
+                not_before=datetime.datetime(2014, 1, 1),
+                not_after=datetime.datetime(2013, 1, 1),
+            )
+
+    def test_public_bytes(self):
+        period = x509.PrivateKeyUsagePeriod(
+            not_before=datetime.datetime(2012, 1, 1, 0, 0, 0),
+            not_after=datetime.datetime(2013, 1, 1, 0, 0, 0),
+        )
+        serialized = period.public_bytes()
+
+        assert serialized == (
+            b"\x30\x22\x80\x0f\x32\x30\x31\x32\x30\x31\x30\x31\x30"
+            b"\x30\x30\x30\x30\x30\x5a\x81\x0f\x32\x30\x31\x33\x30"
+            b"\x31\x30\x31\x30\x30\x30\x30\x30\x30\x5a"
+        )
+
+    def test_only_not_before(self):
+        period = x509.PrivateKeyUsagePeriod(
+            not_before=datetime.datetime(2012, 1, 1),
+            not_after=None,
+        )
+        assert period.not_before == datetime.datetime(2012, 1, 1)
+        assert period.not_after is None
+
+        serialized = period.public_bytes()
+
+        assert serialized == (
+            b"\x30\x11\x80\x0f\x32\x30\x31\x32\x30\x31\x30\x31\x30"
+            b"\x30\x30\x30\x30\x30\x5a"
+        )
+
+    def test_only_not_after(self):
+        period = x509.PrivateKeyUsagePeriod(
+            not_before=None,
+            not_after=datetime.datetime(2013, 1, 1),
+        )
+        assert period.not_before is None
+        assert period.not_after == datetime.datetime(2013, 1, 1)
+
+        serialized = period.public_bytes()
+
+        assert serialized == (
+            b"\x30\x11\x81\x0f\x32\x30\x31\x33\x30\x31\x30\x31\x30"
+            b"\x30\x30\x30\x30\x30\x5a"
+        )
+
+    def test_load_pem_certificate_with_extension(self, backend):
+        cert_path = os.path.join(
+            "x509", "custom", "private_key_usage_period_both_dates.pem"
+        )
+        cert = load_vectors_from_file(
+            cert_path,
+            lambda pemdata: x509.load_pem_x509_certificate(pemdata.read()),
+            mode="rb",
+        )
+        ext = cert.extensions.get_extension_for_class(
+            x509.PrivateKeyUsagePeriod
+        )
+        assert ext.critical is False
+
+        assert ext.value.not_before == datetime.datetime(2024, 1, 1, 0, 0)
+        assert ext.value.not_after == datetime.datetime(
+            2024, 12, 31, 23, 59, 59
+        )
+
+    def test_load_pem_only_not_before(self, backend):
+        cert_path = os.path.join(
+            "x509", "custom", "private_key_usage_period_only_not_before.pem"
+        )
+        cert = load_vectors_from_file(
+            cert_path,
+            lambda pemdata: x509.load_pem_x509_certificate(pemdata.read()),
+            mode="rb",
+        )
+        ext = cert.extensions.get_extension_for_class(
+            x509.PrivateKeyUsagePeriod
+        )
+
+        assert ext.value.not_before == datetime.datetime(2024, 1, 1, 0, 0)
+        assert ext.value.not_after is None
+
+    def test_load_pem_only_not_after(self, backend):
+        cert_path = os.path.join(
+            "x509", "custom", "private_key_usage_period_only_not_after.pem"
+        )
+        cert = load_vectors_from_file(
+            cert_path,
+            lambda pemdata: x509.load_pem_x509_certificate(pemdata.read()),
+            mode="rb",
+        )
+        ext = cert.extensions.get_extension_for_class(
+            x509.PrivateKeyUsagePeriod
+        )
+
+        assert ext.value.not_before is None
+        assert ext.value.not_after == datetime.datetime(
+            2024, 12, 31, 23, 59, 59
+        )
+
+    def test_certificate_builder_with_extension(self, backend):
+        private_key = ec.generate_private_key(ec.SECP256R1())
+
+        period = x509.PrivateKeyUsagePeriod(
+            not_before=datetime.datetime(2012, 1, 1),
+            not_after=datetime.datetime(2013, 1, 1),
+        )
+
+        builder = x509.CertificateBuilder()
+        builder = builder.subject_name(
+            x509.Name(
+                [
+                    x509.NameAttribute(
+                        x509.NameOID.COMMON_NAME, "cryptography.io"
+                    ),
+                ]
+            )
+        )
+        builder = builder.issuer_name(
+            x509.Name(
+                [
+                    x509.NameAttribute(
+                        x509.NameOID.COMMON_NAME, "cryptography.io"
+                    ),
+                ]
+            )
+        )
+        builder = builder.not_valid_before(datetime.datetime(2010, 1, 1))
+        builder = builder.not_valid_after(datetime.datetime(2020, 1, 1))
+        builder = builder.serial_number(123)
+        builder = builder.public_key(private_key.public_key())
+        builder = builder.add_extension(period, critical=True)
+
+        certificate = builder.sign(private_key, hashes.SHA256())
+
+        ext = certificate.extensions.get_extension_for_class(
+            x509.PrivateKeyUsagePeriod
+        )
+
+        assert ext.critical is True
+        assert ext.value.not_before == datetime.datetime(2012, 1, 1)
+        assert ext.value.not_after == datetime.datetime(2013, 1, 1)
 
 
 class TestDNSName:
@@ -6329,6 +6545,947 @@ class TestMSCertificateTemplate:
             ext.public_bytes()
             == b"0\x0b\x06\x03*\x03\x04\x02\x01\x01\x02\x01\x00"
         )
+
+
+class TestNamingAuthority:
+    def test_invalid_init(self):
+        with pytest.raises(TypeError):
+            x509.NamingAuthority(
+                42,  # type:ignore[arg-type]
+                None,
+                None,
+            )
+        with pytest.raises(TypeError):
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"),
+                42,  # type:ignore[arg-type]
+                None,
+            )
+        with pytest.raises(TypeError):
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"),
+                "https://example.com",
+                42,  # type:ignore[arg-type]
+            )
+
+    def test_eq(self):
+        authority1 = x509.NamingAuthority(None, None, None)
+        authority2 = x509.NamingAuthority(None, None, None)
+        assert authority1 == authority2
+
+        authority1 = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+        )
+        authority2 = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+        )
+        assert authority1 == authority2
+
+    def test_ne(self):
+        authority1 = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+        )
+        authority2 = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), None, None
+        )
+        authority3 = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), "https://example.com", None
+        )
+        authority4 = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), None, "spam"
+        )
+        authority5 = x509.NamingAuthority(None, "https://example.com", "spam")
+        authority6 = x509.NamingAuthority(None, None, "spam")
+        authority7 = x509.NamingAuthority(None, "https://example.com", None)
+        authority8 = x509.NamingAuthority(None, None, None)
+        assert authority1 != authority2
+        assert authority1 != authority3
+        assert authority1 != authority4
+        assert authority1 != authority5
+        assert authority1 != authority6
+        assert authority1 != authority7
+        assert authority1 != authority8
+        assert authority1 != object()
+
+    def test_repr(self):
+        authority = x509.NamingAuthority(None, None, None)
+        assert repr(authority) == (
+            "<NamingAuthority(id=None, url=None, text=None)>"
+        )
+
+        authority = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+        )
+        assert repr(authority) == (
+            "<NamingAuthority("
+            "id=<ObjectIdentifier(oid=1.2.3, name=Unknown OID)>, "
+            "url=https://example.com, text=spam)>"
+        )
+
+    def test_hash(self):
+        authority1 = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+        )
+        authority2 = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+        )
+        authority3 = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), None, None
+        )
+        authority4 = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), "https://example.com", None
+        )
+        authority5 = x509.NamingAuthority(
+            x509.ObjectIdentifier("1.2.3"), None, "spam"
+        )
+        authority6 = x509.NamingAuthority(None, "https://example.com", "spam")
+        authority7 = x509.NamingAuthority(None, None, "spam")
+        authority8 = x509.NamingAuthority(None, "https://example.com", None)
+        authority9 = x509.NamingAuthority(None, None, None)
+
+        assert hash(authority1) == hash(authority2)
+        assert hash(authority1) != hash(authority3)
+        assert hash(authority1) != hash(authority4)
+        assert hash(authority1) != hash(authority5)
+        assert hash(authority1) != hash(authority6)
+        assert hash(authority1) != hash(authority7)
+        assert hash(authority1) != hash(authority8)
+        assert hash(authority1) != hash(authority9)
+
+
+class TestProfessionInfo:
+    def test_invalid_init(self):
+        with pytest.raises(TypeError):
+            x509.ProfessionInfo(
+                None,
+                None,  # type:ignore[arg-type]
+                None,
+                None,
+                None,
+            )
+        with pytest.raises(TypeError):
+            x509.ProfessionInfo(
+                "spam",  # type:ignore[arg-type]
+                [],
+                [],
+                None,
+                None,
+            )
+        with pytest.raises(TypeError):
+            x509.ProfessionInfo(
+                None,
+                [42],  # type:ignore[list-item]
+                [],
+                None,
+                None,
+            )
+        with pytest.raises(TypeError):
+            x509.ProfessionInfo(
+                None,
+                [],
+                "spam",  # type:ignore[arg-type]
+                None,
+                None,
+            )
+        with pytest.raises(TypeError):
+            x509.ProfessionInfo(
+                None,
+                [],
+                [],
+                42,  # type:ignore[arg-type]
+                None,
+            )
+        with pytest.raises(TypeError):
+            x509.ProfessionInfo(
+                None,
+                [],
+                [],
+                None,
+                42,  # type:ignore[arg-type]
+            )
+
+    def test_eq(self):
+        info1 = x509.ProfessionInfo(None, [], [], None, None)
+        info2 = x509.ProfessionInfo(None, [], [], None, None)
+        assert info1 == info2
+
+        info1 = x509.ProfessionInfo(None, [], None, None, None)
+        info2 = x509.ProfessionInfo(None, [], None, None, None)
+        assert info1 == info2
+
+        info1 = x509.ProfessionInfo(
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            ["spam"],
+            [x509.ObjectIdentifier("1.2.3.4")],
+            "eggs",
+            b"\x01\x02\x03",
+        )
+        info2 = x509.ProfessionInfo(
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            ["spam"],
+            [x509.ObjectIdentifier("1.2.3.4")],
+            "eggs",
+            b"\x01\x02\x03",
+        )
+        assert info1 == info2
+
+    def test_ne(self):
+        info1 = x509.ProfessionInfo(
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            ["spam"],
+            [x509.ObjectIdentifier("1.2.3.4")],
+            "eggs",
+            b"\x01\x02\x03",
+        )
+        info2 = x509.ProfessionInfo(
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            ["spam"],
+            [x509.ObjectIdentifier("1.2.3.4")],
+            "eggs",
+            None,
+        )
+        info3 = x509.ProfessionInfo(
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            ["spam"],
+            [x509.ObjectIdentifier("1.2.3.4")],
+            None,
+            None,
+        )
+        info4 = x509.ProfessionInfo(
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            ["spam"],
+            [],
+            None,
+            None,
+        )
+        info5 = x509.ProfessionInfo(
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            [],
+            [],
+            None,
+            None,
+        )
+        info6 = x509.ProfessionInfo(None, ["spam"], [], None, None)
+        info7 = x509.ProfessionInfo(
+            None, [], [x509.ObjectIdentifier("1.2.3")], None, None
+        )
+        info8 = x509.ProfessionInfo(None, [], [], "spam", None)
+        info9 = x509.ProfessionInfo(None, [], [], None, b"\x01\x02\x03")
+        info10 = x509.ProfessionInfo(None, [], [], None, None)
+        info11 = x509.ProfessionInfo(None, [], None, None, None)
+
+        assert info1 != info2
+        assert info1 != info2
+        assert info1 != info3
+        assert info1 != info4
+        assert info1 != info5
+        assert info1 != info6
+        assert info1 != info7
+        assert info1 != info8
+        assert info1 != info9
+        assert info1 != info10
+        assert info1 != info11
+        assert info1 != object()
+
+    def test_repr(self):
+        info = x509.ProfessionInfo(None, [], [], None, None)
+        assert repr(info) == (
+            "<ProfessionInfo("
+            "naming_authority=None, "
+            "profession_items=[], "
+            "profession_oids=[], "
+            "registration_number=None, "
+            "add_profession_info=None)>"
+        )
+
+        info = x509.ProfessionInfo(None, [], None, None, None)
+        assert repr(info) == (
+            "<ProfessionInfo("
+            "naming_authority=None, "
+            "profession_items=[], "
+            "profession_oids=None, "
+            "registration_number=None, "
+            "add_profession_info=None)>"
+        )
+
+        info = x509.ProfessionInfo(
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            ["spam"],
+            [x509.ObjectIdentifier("1.2.3.4")],
+            "eggs",
+            b"\x01\x02\x03",
+        )
+        assert repr(info) == (
+            "<ProfessionInfo("
+            "naming_authority=<NamingAuthority("
+            "id=<ObjectIdentifier(oid=1.2.3, name=Unknown OID)>, "
+            "url=https://example.com, text=spam)>, "
+            "profession_items=['spam'], "
+            "profession_oids="
+            "[<ObjectIdentifier(oid=1.2.3.4, name=Unknown OID)>], "
+            "registration_number=eggs, "
+            "add_profession_info=b'\\x01\\x02\\x03')>"
+        )
+
+    def test_hash(self):
+        info1 = x509.ProfessionInfo(
+            x509.NamingAuthority(None, None, None),
+            ["spam"],
+            [x509.ObjectIdentifier("1.2.3.4")],
+            "eggs",
+            b"\x01\x02\x03",
+        )
+        info2 = x509.ProfessionInfo(
+            x509.NamingAuthority(None, None, None),
+            ["spam"],
+            [x509.ObjectIdentifier("1.2.3.4")],
+            "eggs",
+            b"\x01\x02\x03",
+        )
+        info3 = x509.ProfessionInfo(
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            ["spam"],
+            [x509.ObjectIdentifier("1.2.3.4")],
+            "eggs",
+            b"\x01\x02\x03",
+        )
+        info4 = x509.ProfessionInfo(
+            x509.NamingAuthority(None, None, None),
+            [],
+            [x509.ObjectIdentifier("1.2.3.4")],
+            "eggs",
+            b"\x01\x02\x03",
+        )
+        info5 = x509.ProfessionInfo(
+            x509.NamingAuthority(None, None, None),
+            [],
+            [],
+            "eggs",
+            b"\x01\x02\x03",
+        )
+        info6 = x509.ProfessionInfo(
+            x509.NamingAuthority(None, None, None),
+            [],
+            [],
+            None,
+            b"\x01\x02\x03",
+        )
+        info7 = x509.ProfessionInfo(
+            x509.NamingAuthority(None, None, None), [], [], None, None
+        )
+        info8 = x509.ProfessionInfo(
+            x509.NamingAuthority(None, None, None), [], None, None, None
+        )
+        info9 = x509.ProfessionInfo(None, [], None, None, None)
+
+        assert hash(info1) == hash(info2)
+        assert hash(info1) != hash(info3)
+        assert hash(info1) != hash(info4)
+        assert hash(info1) != hash(info5)
+        assert hash(info1) != hash(info6)
+        assert hash(info1) != hash(info7)
+        assert hash(info1) != hash(info8)
+        assert hash(info1) != hash(info9)
+
+
+class TestAdmission:
+    def test_invalid_init(self):
+        with pytest.raises(TypeError):
+            x509.Admission(
+                42,  # type:ignore[arg-type]
+                None,
+                [],
+            )
+        with pytest.raises(TypeError):
+            x509.Admission(
+                None,
+                42,  # type:ignore[arg-type]
+                [],
+            )
+        with pytest.raises(TypeError):
+            x509.Admission(
+                None,
+                None,
+                42,  # type:ignore[arg-type]
+            )
+        with pytest.raises(TypeError):
+            x509.Admission(
+                None,
+                None,
+                [42],  # type:ignore[list-item]
+            )
+
+    def test_eq(self):
+        admission1 = x509.Admission(None, None, [])
+        admission2 = x509.Admission(None, None, [])
+        assert admission1 == admission2
+
+        admission1 = x509.Admission(
+            x509.OtherName(
+                type_id=x509.oid.NameOID.COUNTRY_NAME,
+                value=b"\x04\x04\x13\x02DE",
+            ),
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            [
+                x509.ProfessionInfo(
+                    x509.NamingAuthority(
+                        x509.ObjectIdentifier("1.2.3.4"),
+                        "https://example.org",
+                        "eggs",
+                    ),
+                    ["bacon"],
+                    [x509.ObjectIdentifier("1.2.3.4.5")],
+                    "sausage",
+                    b"\x01\x02\x03",
+                )
+            ],
+        )
+        admission2 = x509.Admission(
+            x509.OtherName(
+                type_id=x509.oid.NameOID.COUNTRY_NAME,
+                value=b"\x04\x04\x13\x02DE",
+            ),
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            [
+                x509.ProfessionInfo(
+                    x509.NamingAuthority(
+                        x509.ObjectIdentifier("1.2.3.4"),
+                        "https://example.org",
+                        "eggs",
+                    ),
+                    ["bacon"],
+                    [x509.ObjectIdentifier("1.2.3.4.5")],
+                    "sausage",
+                    b"\x01\x02\x03",
+                )
+            ],
+        )
+        assert admission1 == admission2
+
+    def test_ne(self):
+        admission1 = x509.Admission(
+            x509.OtherName(
+                type_id=x509.oid.NameOID.COUNTRY_NAME,
+                value=b"\x04\x04\x13\x02DE",
+            ),
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            [
+                x509.ProfessionInfo(
+                    x509.NamingAuthority(
+                        x509.ObjectIdentifier("1.2.3.4"),
+                        "https://example.org",
+                        "eggs",
+                    ),
+                    ["bacon"],
+                    [x509.ObjectIdentifier("1.2.3.4.5")],
+                    "sausage",
+                    b"\x01\x02\x03",
+                )
+            ],
+        )
+        admission2 = x509.Admission(
+            x509.OtherName(
+                type_id=x509.oid.NameOID.COUNTRY_NAME,
+                value=b"\x04\x04\x13\x02DE",
+            ),
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            [],
+        )
+        admission3 = x509.Admission(
+            x509.OtherName(
+                type_id=x509.oid.NameOID.COUNTRY_NAME,
+                value=b"\x04\x04\x13\x02DE",
+            ),
+            None,
+            [
+                x509.ProfessionInfo(
+                    x509.NamingAuthority(
+                        x509.ObjectIdentifier("1.2.3.4"),
+                        "https://example.org",
+                        "eggs",
+                    ),
+                    ["bacon"],
+                    [x509.ObjectIdentifier("1.2.3.4.5")],
+                    "sausage",
+                    b"\x01\x02\x03",
+                )
+            ],
+        )
+        admission4 = x509.Admission(
+            None,
+            None,
+            [
+                x509.ProfessionInfo(
+                    x509.NamingAuthority(
+                        x509.ObjectIdentifier("1.2.3.4"),
+                        "https://example.org",
+                        "eggs",
+                    ),
+                    ["bacon"],
+                    [x509.ObjectIdentifier("1.2.3.4.5")],
+                    "sausage",
+                    b"\x01\x02\x03",
+                )
+            ],
+        )
+        admission5 = x509.Admission(
+            x509.OtherName(
+                type_id=x509.oid.NameOID.COUNTRY_NAME,
+                value=b"\x04\x04\x13\x02DE",
+            ),
+            None,
+            [],
+        )
+        admission6 = x509.Admission(
+            None,
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            [],
+        )
+        admission7 = x509.Admission(None, None, [])
+
+        assert admission1 != admission2
+        assert admission1 != admission3
+        assert admission1 != admission4
+        assert admission1 != admission5
+        assert admission1 != admission6
+        assert admission1 != admission7
+        assert admission1 != object()
+
+    def test_repr(self):
+        admission = x509.Admission(None, None, [])
+        assert repr(admission) == (
+            "<Admission("
+            "admission_authority=None, "
+            "naming_authority=None, "
+            "profession_infos=[])>"
+        )
+
+        admission = x509.Admission(
+            x509.OtherName(
+                type_id=x509.oid.NameOID.COUNTRY_NAME,
+                value=b"\x04\x04\x13\x02DE",
+            ),
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            [
+                x509.ProfessionInfo(
+                    x509.NamingAuthority(
+                        x509.ObjectIdentifier("1.2.3.4"),
+                        "https://example.org",
+                        "eggs",
+                    ),
+                    ["bacon"],
+                    [x509.ObjectIdentifier("1.2.3.4.5")],
+                    "sausage",
+                    b"\x01\x02\x03",
+                )
+            ],
+        )
+        assert repr(admission) == (
+            "<Admission("
+            "admission_authority=<OtherName("
+            "type_id=<ObjectIdentifier("
+            "oid=2.5.4.6, name=countryName)>, "
+            "value=b'\\x04\\x04\\x13\\x02DE')>, "
+            "naming_authority=<NamingAuthority("
+            "id=<ObjectIdentifier(oid=1.2.3, name=Unknown OID)>, "
+            "url=https://example.com, text=spam)>, "
+            "profession_infos=[<ProfessionInfo("
+            "naming_authority=<NamingAuthority("
+            "id=<ObjectIdentifier(oid=1.2.3.4, name=Unknown OID)>, "
+            "url=https://example.org, text=eggs)>, "
+            "profession_items=['bacon'], "
+            "profession_oids=[<ObjectIdentifier("
+            "oid=1.2.3.4.5, name=Unknown OID)>], "
+            "registration_number=sausage, "
+            "add_profession_info=b'\\x01\\x02\\x03')>])>"
+        )
+
+    def test_hash(self):
+        admission1 = x509.Admission(
+            x509.OtherName(
+                type_id=x509.oid.NameOID.COUNTRY_NAME,
+                value=b"\x04\x04\x13\x02DE",
+            ),
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            [
+                x509.ProfessionInfo(
+                    x509.NamingAuthority(
+                        x509.ObjectIdentifier("1.2.3.4"),
+                        "https://example.org",
+                        "eggs",
+                    ),
+                    ["bacon"],
+                    [x509.ObjectIdentifier("1.2.3.4.5")],
+                    "sausage",
+                    b"\x01\x02\x03",
+                )
+            ],
+        )
+        admission2 = x509.Admission(
+            x509.OtherName(
+                type_id=x509.oid.NameOID.COUNTRY_NAME,
+                value=b"\x04\x04\x13\x02DE",
+            ),
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            [
+                x509.ProfessionInfo(
+                    x509.NamingAuthority(
+                        x509.ObjectIdentifier("1.2.3.4"),
+                        "https://example.org",
+                        "eggs",
+                    ),
+                    ["bacon"],
+                    [x509.ObjectIdentifier("1.2.3.4.5")],
+                    "sausage",
+                    b"\x01\x02\x03",
+                )
+            ],
+        )
+        admission3 = x509.Admission(
+            x509.UniformResourceIdentifier(value="https://www.example.de"),
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            [
+                x509.ProfessionInfo(
+                    x509.NamingAuthority(
+                        x509.ObjectIdentifier("1.2.3.4"),
+                        "https://example.org",
+                        "eggs",
+                    ),
+                    ["bacon"],
+                    [x509.ObjectIdentifier("1.2.3.4.5")],
+                    "sausage",
+                    b"\x01\x02\x03",
+                )
+            ],
+        )
+        admission4 = x509.Admission(
+            x509.OtherName(
+                type_id=x509.oid.NameOID.COUNTRY_NAME,
+                value=b"\x04\x04\x13\x02DE",
+            ),
+            x509.NamingAuthority(None, None, None),
+            [
+                x509.ProfessionInfo(
+                    x509.NamingAuthority(
+                        x509.ObjectIdentifier("1.2.3.4"),
+                        "https://example.org",
+                        "eggs",
+                    ),
+                    ["bacon"],
+                    [x509.ObjectIdentifier("1.2.3.4.5")],
+                    "sausage",
+                    b"\x01\x02\x03",
+                )
+            ],
+        )
+        admission5 = x509.Admission(
+            x509.OtherName(
+                type_id=x509.oid.NameOID.COUNTRY_NAME,
+                value=b"\x04\x04\x13\x02DE",
+            ),
+            x509.NamingAuthority(
+                x509.ObjectIdentifier("1.2.3"), "https://example.com", "spam"
+            ),
+            [],
+        )
+        admission6 = x509.Admission(None, None, [])
+
+        assert hash(admission1) == hash(admission2)
+        assert hash(admission1) != hash(admission3)
+        assert hash(admission1) != hash(admission4)
+        assert hash(admission1) != hash(admission5)
+        assert hash(admission1) != hash(admission6)
+
+
+class TestAdmissions:
+    def test_invalid_init(self):
+        with pytest.raises(TypeError):
+            x509.Admissions(
+                42,  # type:ignore[arg-type]
+                [],
+            )
+        with pytest.raises(TypeError):
+            x509.Admissions(
+                None,
+                42,  # type:ignore[arg-type]
+            )
+        with pytest.raises(TypeError):
+            x509.Admissions(
+                None,
+                [42],  # type:ignore[list-item]
+            )
+        with pytest.raises(TypeError):
+            x509.Admissions(
+                None,
+                [None],  # type:ignore[list-item]
+            )
+
+    def test_eq(self):
+        admissions1 = x509.Admissions(None, [])
+        admissions2 = x509.Admissions(None, [])
+        assert admissions1 == admissions2
+
+        admissions1 = x509.Admissions(
+            x509.UniformResourceIdentifier(value="https://www.example.de"),
+            [x509.Admission(None, None, [])],
+        )
+        admissions2 = x509.Admissions(
+            x509.UniformResourceIdentifier(value="https://www.example.de"),
+            [x509.Admission(None, None, [])],
+        )
+        assert admissions1 == admissions2
+
+    def test_ne(self):
+        admissions1 = x509.Admissions(
+            x509.UniformResourceIdentifier(value="https://www.example.de"),
+            [x509.Admission(None, None, [])],
+        )
+        admissions2 = x509.Admissions(
+            x509.UniformResourceIdentifier(value="https://www.example.de"), []
+        )
+        admissions3 = x509.Admissions(
+            None,
+            [x509.Admission(None, None, [])],
+        )
+        admissions4 = x509.Admissions(None, [])
+
+        assert admissions1 != admissions2
+        assert admissions1 != admissions3
+        assert admissions1 != admissions4
+        assert admissions1 != object()
+
+    def test_repr(self):
+        admissions = x509.Admissions(None, [])
+        assert repr(admissions) == (
+            "<Admissions(authority=None, admissions=[])>"
+        )
+
+        admissions = x509.Admissions(
+            x509.UniformResourceIdentifier(value="https://www.example.de"),
+            [x509.Admission(None, None, [])],
+        )
+        assert repr(admissions) == (
+            "<Admissions("
+            "authority=<UniformResourceIdentifier("
+            "value='https://www.example.de')>, "
+            "admissions=[<Admission("
+            "admission_authority=None, "
+            "naming_authority=None, "
+            "profession_infos=[])>])>"
+        )
+
+    def test_hash(self):
+        admissions1 = x509.Admissions(
+            x509.UniformResourceIdentifier(value="https://www.example.de"),
+            [x509.Admission(None, None, [])],
+        )
+        admissions2 = x509.Admissions(
+            x509.UniformResourceIdentifier(value="https://www.example.de"),
+            [x509.Admission(None, None, [])],
+        )
+        admissions3 = x509.Admissions(
+            x509.UniformResourceIdentifier(value="https://www.example.de"), []
+        )
+        admissions4 = x509.Admissions(
+            None,
+            [x509.Admission(None, None, [])],
+        )
+        admissions5 = x509.Admissions(None, [])
+        assert hash(admissions1) == hash(admissions2)
+        assert hash(admissions1) != hash(admissions3)
+        assert hash(admissions1) != hash(admissions4)
+        assert hash(admissions1) != hash(admissions5)
+
+    def test_public_bytes(self):
+        ext = x509.Admissions(None, [])
+        assert ext.public_bytes() == b"0\x020\x00"
+
+        ext = x509.Admissions(
+            x509.UniformResourceIdentifier(value="https://www.example.com/"),
+            [],
+        )
+        assert (
+            ext.public_bytes() == b"0\x1c\x86\x18https://www.example.com/0\x00"
+        )
+
+        # test for encoding none values
+        ext = x509.Admissions(
+            None,
+            [
+                x509.Admission(
+                    None,
+                    x509.NamingAuthority(None, None, None),
+                    [x509.ProfessionInfo(None, [], [], None, None)],
+                ),
+                x509.Admission(
+                    None,
+                    None,
+                    [
+                        x509.ProfessionInfo(
+                            x509.NamingAuthority(None, None, None),
+                            [],
+                            [],
+                            None,
+                            None,
+                        )
+                    ],
+                ),
+            ],
+        )
+        assert ext.public_bytes() == (
+            b"0\x1e0\x1c0\x0c\xa1\x020\x000\x060\x040\x000\x000\x0c0\n0\x08\xa0\x020\x000\x000\x00"
+        )
+
+        # example values taken from https://gemspec.gematik.de/downloads/gemSpec/gemSpec_OID/gemSpec_OID_V3.17.0.pdf
+        ext = x509.Admissions(
+            authority=x509.DirectoryName(
+                value=x509.Name(
+                    [
+                        x509.NameAttribute(
+                            x509.oid.NameOID.COUNTRY_NAME, "DE"
+                        ),
+                        x509.NameAttribute(
+                            x509.NameOID.ORGANIZATIONAL_UNIT_NAME,
+                            "Elektronisches Gesundheitsberuferegister",
+                        ),
+                    ]
+                )
+            ),
+            admissions=[
+                x509.Admission(
+                    admission_authority=x509.DNSName("gematik.de"),
+                    naming_authority=x509.NamingAuthority(
+                        x509.ObjectIdentifier("1.2.276.0.76.3.1.91"),
+                        "https://gematik.de/",
+                        (
+                            "Gesellschaft für Telematikanwendungen "
+                            "der Gesundheitskarte mbH"
+                        ),
+                    ),
+                    profession_infos=[
+                        x509.ProfessionInfo(
+                            naming_authority=x509.NamingAuthority(
+                                x509.ObjectIdentifier("1.2.276.0.76.3.1.1"),
+                                "https://www.kbv.de/",
+                                "KBV Kassenärztliche Bundesvereinigung",
+                            ),
+                            registration_number="123456789",
+                            profession_items=[
+                                "Ärztin/Arzt",
+                                (
+                                    "Orthopädieschuhmacher/-in "
+                                    "und Orthopädietechniker/-in"
+                                ),
+                            ],
+                            profession_oids=[
+                                x509.ObjectIdentifier("1.2.276.0.76.4.30"),
+                                x509.ObjectIdentifier("1.2.276.0.76.4.305"),
+                            ],
+                            # DER-encoded:
+                            # `OtherName(
+                            #   type_id=ObjectIdentifier('1.2.276.0.76.4.60'),
+                            #   value=b'\x0c\x1dProbe-Client Broker-Betreiber'
+                            # )`
+                            add_profession_info=(
+                                b"\xa0*\x06\x07*\x82\x14\x00L\x04<\xa0\x1f"
+                                b"\x0c\x1dProbe-Client Broker-Betreiber"
+                            ),
+                        )
+                    ],
+                ),
+            ],
+        )
+        assert ext.public_bytes() == (
+            b"0\x82\x01\xa6\xa4B0@1\x0b0\t\x06\x03U\x04\x06\x13\x02DE110/\x06"
+            b"\x03U\x04\x0b\x0c(Elektronisches Gesundheitsberuferegister0\x82"
+            b"\x01^0\x82\x01Z\xa0\x0c\x82\ngematik.de\xa1b0`\x06\x08*\x82\x14"
+            b"\x00L\x03\x01[\x16\x13https://gematik.de/\x0c?Gesellschaft f\xc3"
+            b"\xbcr Telematikanwendungen der Gesundheitskarte mbH0\x81\xe50"
+            b"\x81\xe2\xa0I0G\x06\x08*\x82\x14\x00L\x03\x01\x01\x16\x13https://www."
+            b"kbv.de/\x0c&KBV Kassen\xc3\xa4rztliche Bundesvereinigung0G\x0c"
+            b"\x0c\xc3\x84rztin/Arzt\x0c7Orthop\xc3\xa4dieschuhmacher/-in und "
+            b"Orthop\xc3\xa4dietechniker/-in0\x13\x06\x07*\x82\x14\x00L\x04\x1e"
+            b"\x06\x08*\x82\x14\x00L\x04\x821\x13\t123456789\x04,\xa0*\x06"
+            b"\x07*\x82\x14\x00L\x04<\xa0\x1f\x0c\x1dProbe-Client Broker-"
+            b"Betreiber"
+        )
+
+        # test for non-ascii url value in naming authority
+        ext = x509.Admissions(
+            None,
+            [
+                x509.Admission(
+                    None,
+                    x509.NamingAuthority(None, "😄", None),
+                    [],
+                ),
+            ],
+        )
+        with pytest.raises(ValueError):
+            ext.public_bytes()
+
+        # test for non-ascii registration number value in profession info
+        ext = x509.Admissions(
+            None,
+            [
+                x509.Admission(
+                    None,
+                    None,
+                    [x509.ProfessionInfo(None, [], [], "\x00", None)],
+                ),
+            ],
+        )
+        with pytest.raises(ValueError):
+            ext.public_bytes()
+
+        # test that none passed for `profession_oids` is encoded as none
+        ext = x509.Admissions(
+            None,
+            [
+                x509.Admission(
+                    None,
+                    None,
+                    [x509.ProfessionInfo(None, [], None, None, None)],
+                ),
+            ],
+        )
+        assert ext.public_bytes() == b"0\n0\x080\x060\x040\x020\x00"
 
 
 def test_all_extension_oid_members_have_names_defined():

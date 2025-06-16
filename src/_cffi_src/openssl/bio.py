@@ -35,14 +35,17 @@ void BIO_ADDR_free(BIO_ADDR *);
 """
 
 CUSTOMIZATIONS = """
-#if CRYPTOGRAPHY_IS_LIBRESSL || CRYPTOGRAPHY_IS_BORINGSSL
+#if CRYPTOGRAPHY_IS_LIBRESSL || CRYPTOGRAPHY_IS_BORINGSSL \
+    || CRYPTOGRAPHY_IS_AWSLC
 
 #if !defined(_WIN32)
 #include <sys/socket.h>
 #endif
 
 #include <stdlib.h>
+#if !CRYPTOGRAPHY_IS_AWSLC
 typedef struct sockaddr BIO_ADDR;
+#endif
 
 BIO_ADDR *BIO_ADDR_new(void) {
     return malloc(sizeof(struct sockaddr_storage));

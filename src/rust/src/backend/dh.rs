@@ -3,12 +3,12 @@
 // for complete details.
 
 use cryptography_x509::common;
+use pyo3::types::PyAnyMethods;
 
 use crate::asn1::encode_der_data;
 use crate::backend::utils;
 use crate::error::{CryptographyError, CryptographyResult};
 use crate::{types, x509};
-use pyo3::types::PyAnyMethods;
 
 const MIN_MODULUS_SIZE: u32 = 512;
 
@@ -119,7 +119,14 @@ fn dh_parameters_from_numbers(
         .transpose()?;
     let g = utils::py_int_to_bn(py, numbers.g.bind(py))?;
 
-    Ok(openssl::dh::Dh::from_pqg(p, q, g)?)
+    let dh = openssl::dh::Dh::from_pqg(p, q, g)?;
+
+    if !dh.check_key()? {
+        return Err(CryptographyError::from(
+            pyo3::exceptions::PyValueError::new_err("Invalid DH parameters"),
+        ));
+    }
+    Ok(dh)
 }
 
 fn clone_dh<T: openssl::pkey::HasParams>(
@@ -149,7 +156,7 @@ impl DHPrivateKey {
             .map_err(|_| pyo3::exceptions::PyValueError::new_err("Error computing shared key."))?;
 
         let len = deriver.len()?;
-        Ok(pyo3::types::PyBytes::new_bound_with(py, len, |b| {
+        Ok(pyo3::types::PyBytes::new_with(py, len, |b| {
             let n = deriver.derive(b).unwrap();
 
             let pad = b.len() - n;
@@ -192,7 +199,7 @@ impl DHPrivateKey {
         })
     }
 
-    #[cfg(not(CRYPTOGRAPHY_IS_BORINGSSL))]
+    #[cfg(not(any(CRYPTOGRAPHY_IS_BORINGSSL, CRYPTOGRAPHY_IS_AWSLC)))]
     fn public_key(&self) -> CryptographyResult<DHPublicKey> {
         let orig_dh = self.pkey.dh().unwrap();
         let dh = clone_dh(&orig_dh)?;
@@ -234,6 +241,10 @@ impl DHPrivateKey {
             true,
             false,
         )
+    }
+
+    fn __copy__(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
+        slf
     }
 }
 
@@ -302,7 +313,7 @@ impl DHPublicKey {
 
 #[pyo3::pymethods]
 impl DHParameters {
-    #[cfg(not(CRYPTOGRAPHY_IS_BORINGSSL))]
+    #[cfg(not(any(CRYPTOGRAPHY_IS_BORINGSSL, CRYPTOGRAPHY_IS_AWSLC)))]
     fn generate_private_key(&self) -> CryptographyResult<DHPrivateKey> {
         let dh = clone_dh(&self.dh)?.generate_key()?;
         Ok(DHPrivateKey {
@@ -363,7 +374,7 @@ impl DHParameters {
 #[pyo3::pyclass(frozen, module = "cryptography.hazmat.primitives.asymmetric.dh")]
 struct DHPrivateNumbers {
     #[pyo3(get)]
-    x: pyo3::Py<pyo3::types::PyLong>,
+    x: pyo3::Py<pyo3::types::PyInt>,
     #[pyo3(get)]
     public_numbers: pyo3::Py<DHPublicNumbers>,
 }
@@ -371,7 +382,7 @@ struct DHPrivateNumbers {
 #[pyo3::pyclass(frozen, module = "cryptography.hazmat.primitives.asymmetric.dh")]
 struct DHPublicNumbers {
     #[pyo3(get)]
-    y: pyo3::Py<pyo3::types::PyLong>,
+    y: pyo3::Py<pyo3::types::PyInt>,
     #[pyo3(get)]
     parameter_numbers: pyo3::Py<DHParameterNumbers>,
 }
@@ -379,24 +390,24 @@ struct DHPublicNumbers {
 #[pyo3::pyclass(frozen, module = "cryptography.hazmat.primitives.asymmetric.dh")]
 struct DHParameterNumbers {
     #[pyo3(get)]
-    p: pyo3::Py<pyo3::types::PyLong>,
+    p: pyo3::Py<pyo3::types::PyInt>,
     #[pyo3(get)]
-    g: pyo3::Py<pyo3::types::PyLong>,
+    g: pyo3::Py<pyo3::types::PyInt>,
     #[pyo3(get)]
-    q: Option<pyo3::Py<pyo3::types::PyLong>>,
+    q: Option<pyo3::Py<pyo3::types::PyInt>>,
 }
 
 #[pyo3::pymethods]
 impl DHPrivateNumbers {
     #[new]
     fn new(
-        x: pyo3::Py<pyo3::types::PyLong>,
+        x: pyo3::Py<pyo3::types::PyInt>,
         public_numbers: pyo3::Py<DHPublicNumbers>,
     ) -> DHPrivateNumbers {
         DHPrivateNumbers { x, public_numbers }
     }
 
-    #[cfg(not(CRYPTOGRAPHY_IS_BORINGSSL))]
+    #[cfg(not(any(CRYPTOGRAPHY_IS_BORINGSSL, CRYPTOGRAPHY_IS_AWSLC)))]
     #[pyo3(signature = (backend=None))]
     fn private_key(
         &self,
@@ -411,14 +422,6 @@ impl DHPrivateNumbers {
         let priv_key = utils::py_int_to_bn(py, self.x.bind(py))?;
 
         let dh = dh.set_key(pub_key, priv_key)?;
-        if !dh.check_key()? {
-            return Err(CryptographyError::from(
-                pyo3::exceptions::PyValueError::new_err(
-                    "DH private numbers did not pass safety checks.",
-                ),
-            ));
-        }
-
         let pkey = openssl::pkey::PKey::from_dh(dh)?;
         Ok(DHPrivateKey { pkey })
     }
@@ -428,7 +431,7 @@ impl DHPrivateNumbers {
         py: pyo3::Python<'_>,
         other: pyo3::PyRef<'_, Self>,
     ) -> CryptographyResult<bool> {
-        Ok(self.x.bind(py).eq(other.x.bind(py))?
+        Ok((**self.x.bind(py)).eq(other.x.bind(py))?
             && self
                 .public_numbers
                 .bind(py)
@@ -440,7 +443,7 @@ impl DHPrivateNumbers {
 impl DHPublicNumbers {
     #[new]
     fn new(
-        y: pyo3::Py<pyo3::types::PyLong>,
+        y: pyo3::Py<pyo3::types::PyInt>,
         parameter_numbers: pyo3::Py<DHParameterNumbers>,
     ) -> DHPublicNumbers {
         DHPublicNumbers {
@@ -449,7 +452,7 @@ impl DHPublicNumbers {
         }
     }
 
-    #[cfg(not(CRYPTOGRAPHY_IS_BORINGSSL))]
+    #[cfg(not(any(CRYPTOGRAPHY_IS_BORINGSSL, CRYPTOGRAPHY_IS_AWSLC)))]
     #[pyo3(signature = (backend=None))]
     fn public_key(
         &self,
@@ -472,7 +475,7 @@ impl DHPublicNumbers {
         py: pyo3::Python<'_>,
         other: pyo3::PyRef<'_, Self>,
     ) -> CryptographyResult<bool> {
-        Ok(self.y.bind(py).eq(other.y.bind(py))?
+        Ok((**self.y.bind(py)).eq(other.y.bind(py))?
             && self
                 .parameter_numbers
                 .bind(py)
@@ -486,9 +489,9 @@ impl DHParameterNumbers {
     #[pyo3(signature = (p, g, q=None))]
     fn new(
         py: pyo3::Python<'_>,
-        p: pyo3::Py<pyo3::types::PyLong>,
-        g: pyo3::Py<pyo3::types::PyLong>,
-        q: Option<pyo3::Py<pyo3::types::PyLong>>,
+        p: pyo3::Py<pyo3::types::PyInt>,
+        g: pyo3::Py<pyo3::types::PyInt>,
+        q: Option<pyo3::Py<pyo3::types::PyInt>>,
     ) -> CryptographyResult<DHParameterNumbers> {
         if g.bind(py).lt(2)? {
             return Err(CryptographyError::from(
@@ -528,12 +531,12 @@ impl DHParameterNumbers {
         other: pyo3::PyRef<'_, Self>,
     ) -> CryptographyResult<bool> {
         let q_equal = match (self.q.as_ref(), other.q.as_ref()) {
-            (Some(self_q), Some(other_q)) => self_q.bind(py).eq(other_q.bind(py))?,
+            (Some(self_q), Some(other_q)) => (**self_q.bind(py)).eq(other_q.bind(py))?,
             (None, None) => true,
             _ => false,
         };
-        Ok(self.p.bind(py).eq(other.p.bind(py))?
-            && self.g.bind(py).eq(other.g.bind(py))?
+        Ok((**self.p.bind(py)).eq(other.p.bind(py))?
+            && (**self.g.bind(py)).eq(other.g.bind(py))?
             && q_equal)
     }
 }

@@ -16,25 +16,24 @@ use std::fmt::Display;
 use std::vec;
 
 use asn1::ObjectIdentifier;
-use cryptography_x509::extensions::{DuplicateExtensionsError, Extensions};
-use cryptography_x509::{
-    extensions::{NameConstraints, SubjectAlternativeName},
-    name::GeneralName,
-    oid::{NAME_CONSTRAINTS_OID, SUBJECT_ALTERNATIVE_NAME_OID},
+use cryptography_x509::common::Asn1Read;
+use cryptography_x509::extensions::{
+    DuplicateExtensionsError, Extensions, NameConstraints, SubjectAlternativeName,
 };
-use types::{RFC822Constraint, RFC822Name};
+use cryptography_x509::name::GeneralName;
+use cryptography_x509::oid::{NAME_CONSTRAINTS_OID, SUBJECT_ALTERNATIVE_NAME_OID};
 
 use crate::certificate::cert_is_self_issued;
 use crate::ops::{CryptoOps, VerificationCertificate};
 use crate::policy::Policy;
 use crate::trust_store::Store;
-use crate::types::DNSName;
-use crate::types::{DNSConstraint, IPAddress, IPConstraint};
+use crate::types::{
+    DNSConstraint, DNSPattern, IPAddress, IPConstraint, RFC822Constraint, RFC822Name,
+};
 use crate::ApplyNameConstraintStatus::{Applied, Skipped};
 
-#[derive(Debug)]
-pub enum ValidationError {
-    CandidatesExhausted(Box<ValidationError>),
+pub enum ValidationErrorKind<'chain, B: CryptoOps> {
+    CandidatesExhausted(Box<ValidationError<'chain, B>>),
     Malformed(asn1::ParseError),
     ExtensionError {
         oid: ObjectIdentifier,
@@ -44,33 +43,55 @@ pub enum ValidationError {
     Other(String),
 }
 
-impl From<asn1::ParseError> for ValidationError {
-    fn from(value: asn1::ParseError) -> Self {
-        Self::Malformed(value)
+pub struct ValidationError<'chain, B: CryptoOps> {
+    kind: ValidationErrorKind<'chain, B>,
+    cert: Option<VerificationCertificate<'chain, B>>,
+}
+
+impl<'chain, B: CryptoOps> ValidationError<'chain, B> {
+    pub fn new(kind: ValidationErrorKind<'chain, B>) -> Self {
+        ValidationError { kind, cert: None }
+    }
+
+    pub(crate) fn set_cert(mut self, cert: VerificationCertificate<'chain, B>) -> Self {
+        self.cert = Some(cert);
+        self
+    }
+
+    pub fn certificate(&self) -> Option<&VerificationCertificate<'chain, B>> {
+        self.cert.as_ref()
     }
 }
 
-impl From<DuplicateExtensionsError> for ValidationError {
+pub type ValidationResult<'chain, T, B> = Result<T, ValidationError<'chain, B>>;
+
+impl<B: CryptoOps> From<asn1::ParseError> for ValidationError<'_, B> {
+    fn from(value: asn1::ParseError) -> Self {
+        Self::new(ValidationErrorKind::Malformed(value))
+    }
+}
+
+impl<B: CryptoOps> From<DuplicateExtensionsError> for ValidationError<'_, B> {
     fn from(value: DuplicateExtensionsError) -> Self {
-        Self::ExtensionError {
+        Self::new(ValidationErrorKind::ExtensionError {
             oid: value.0,
             reason: "duplicate extension",
-        }
+        })
     }
 }
 
-impl Display for ValidationError {
+impl<B: CryptoOps> Display for ValidationError<'_, B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ValidationError::CandidatesExhausted(inner) => {
+        match &self.kind {
+            ValidationErrorKind::CandidatesExhausted(inner) => {
                 write!(f, "candidates exhausted: {inner}")
             }
-            ValidationError::Malformed(err) => err.fmt(f),
-            ValidationError::ExtensionError { oid, reason } => {
+            ValidationErrorKind::Malformed(err) => err.fmt(f),
+            ValidationErrorKind::ExtensionError { oid, reason } => {
                 write!(f, "invalid extension: {oid}: {reason}")
             }
-            ValidationError::FatalError(err) => write!(f, "fatal error: {err}"),
-            ValidationError::Other(err) => write!(f, "{err}"),
+            ValidationErrorKind::FatalError(err) => write!(f, "fatal error: {err}"),
+            ValidationErrorKind::Other(err) => write!(f, "{err}"),
         }
     }
 }
@@ -89,13 +110,13 @@ impl Budget {
         }
     }
 
-    fn name_constraint_check(&mut self) -> Result<(), ValidationError> {
+    fn name_constraint_check<'chain, B: CryptoOps>(&mut self) -> ValidationResult<'chain, (), B> {
         self.name_constraint_checks =
-            self.name_constraint_checks
-                .checked_sub(1)
-                .ok_or(ValidationError::FatalError(
+            self.name_constraint_checks.checked_sub(1).ok_or_else(|| {
+                ValidationError::new(ValidationErrorKind::FatalError(
                     "Exceeded maximum name constraint check limit",
-                ))?;
+                ))
+            })?;
         Ok(())
     }
 }
@@ -106,11 +127,11 @@ struct NameChain<'a, 'chain> {
 }
 
 impl<'a, 'chain> NameChain<'a, 'chain> {
-    fn new(
+    fn new<B: CryptoOps>(
         child: Option<&'a NameChain<'a, 'chain>>,
         extensions: &Extensions<'chain>,
         self_issued_intermediate: bool,
-    ) -> Result<Self, ValidationError> {
+    ) -> ValidationResult<'chain, Self, B> {
         let sans = match (
             self_issued_intermediate,
             extensions.get_extension(&SUBJECT_ALTERNATIVE_NAME_OID),
@@ -124,55 +145,61 @@ impl<'a, 'chain> NameChain<'a, 'chain> {
         Ok(Self { child, sans })
     }
 
-    fn evaluate_single_constraint(
+    fn evaluate_single_constraint<B: CryptoOps>(
         &self,
         constraint: &GeneralName<'chain>,
         san: &GeneralName<'chain>,
         budget: &mut Budget,
-    ) -> Result<ApplyNameConstraintStatus, ValidationError> {
+    ) -> ValidationResult<'chain, ApplyNameConstraintStatus, B> {
         budget.name_constraint_check()?;
 
         match (constraint, san) {
-            (GeneralName::DNSName(pattern), GeneralName::DNSName(name)) => {
-                match (DNSConstraint::new(pattern.0), DNSName::new(name.0)) {
-                    (Some(pattern), Some(name)) => Ok(Applied(pattern.matches(&name))),
-                    (_, None) => Err(ValidationError::Other(format!(
+            (GeneralName::DNSName(constraint), GeneralName::DNSName(name)) => {
+                // NOTE: A DNS SAN can be a wildcard pattern instead of a normal DNS name.
+                // These are handled by matching unconditionally on the inner name,
+                // since a NC of `foo.com` will match both `foo.com` and any arbitrarily deep
+                // subdomain of `foo.com`, where a wildcard SAN like `*.foo.com` will only
+                // match exactly one subdomain of `foo.com`. Therefore, the NC's matching
+                // set is a strict superset of any possible wildcard SAN pattern.
+                match (DNSConstraint::new(constraint.0), DNSPattern::new(name.0)) {
+                    (Some(constraint), Some(name)) => {
+                        Ok(Applied(constraint.matches(name.inner_name())))
+                    }
+                    (_, None) => Err(ValidationError::new(ValidationErrorKind::Other(format!(
                         "unsatisfiable DNS name constraint: malformed SAN {}",
                         name.0
-                    ))),
-                    (None, _) => Err(ValidationError::Other(format!(
+                    )))),
+                    (None, _) => Err(ValidationError::new(ValidationErrorKind::Other(format!(
                         "malformed DNS name constraint: {}",
-                        pattern.0
-                    ))),
+                        constraint.0
+                    )))),
                 }
             }
-            (GeneralName::IPAddress(pattern), GeneralName::IPAddress(name)) => {
+            (GeneralName::IPAddress(constraint), GeneralName::IPAddress(name)) => {
                 match (
-                    IPConstraint::from_bytes(pattern),
+                    IPConstraint::from_bytes(constraint),
                     IPAddress::from_bytes(name),
                 ) {
-                    (Some(pattern), Some(name)) => Ok(Applied(pattern.matches(&name))),
-                    (_, None) => Err(ValidationError::Other(format!(
-                        "unsatisfiable IP name constraint: malformed SAN {:?}",
-                        name,
-                    ))),
-                    (None, _) => Err(ValidationError::Other(format!(
-                        "malformed IP name constraints: {:?}",
-                        pattern
-                    ))),
+                    (Some(constraint), Some(name)) => Ok(Applied(constraint.matches(&name))),
+                    (_, None) => Err(ValidationError::new(ValidationErrorKind::Other(format!(
+                        "unsatisfiable IP name constraint: malformed SAN {name:?}",
+                    )))),
+                    (None, _) => Err(ValidationError::new(ValidationErrorKind::Other(format!(
+                        "malformed IP name constraints: {constraint:?}",
+                    )))),
                 }
             }
-            (GeneralName::RFC822Name(pattern), GeneralName::RFC822Name(name)) => {
-                match (RFC822Constraint::new(pattern.0), RFC822Name::new(name.0)) {
-                    (Some(pattern), Some(name)) => Ok(Applied(pattern.matches(&name))),
-                    (_, None) => Err(ValidationError::Other(format!(
+            (GeneralName::RFC822Name(constraint), GeneralName::RFC822Name(name)) => {
+                match (RFC822Constraint::new(constraint.0), RFC822Name::new(name.0)) {
+                    (Some(constraint), Some(name)) => Ok(Applied(constraint.matches(&name))),
+                    (_, None) => Err(ValidationError::new(ValidationErrorKind::Other(format!(
                         "unsatisfiable RFC822 name constraint: malformed SAN {:?}",
                         name.0,
-                    ))),
-                    (None, _) => Err(ValidationError::Other(format!(
+                    )))),
+                    (None, _) => Err(ValidationError::new(ValidationErrorKind::Other(format!(
                         "malformed RFC822 name constraints: {:?}",
-                        pattern.0
-                    ))),
+                        constraint.0
+                    )))),
                 }
             }
             // All other matching pairs of (constraint, name) are currently unsupported.
@@ -184,18 +211,20 @@ impl<'a, 'chain> NameChain<'a, 'chain> {
                 GeneralName::UniformResourceIdentifier(_),
                 GeneralName::UniformResourceIdentifier(_),
             )
-            | (GeneralName::RegisteredID(_), GeneralName::RegisteredID(_)) => Err(
-                ValidationError::Other("unsupported name constraint".to_string()),
-            ),
+            | (GeneralName::RegisteredID(_), GeneralName::RegisteredID(_)) => {
+                Err(ValidationError::new(ValidationErrorKind::Other(
+                    "unsupported name constraint".to_string(),
+                )))
+            }
             _ => Ok(Skipped),
         }
     }
 
-    fn evaluate_constraints(
+    fn evaluate_constraints<B: CryptoOps>(
         &self,
-        constraints: &NameConstraints<'chain>,
+        constraints: &NameConstraints<'chain, Asn1Read>,
         budget: &mut Budget,
-    ) -> Result<(), ValidationError> {
+    ) -> ValidationResult<'chain, (), B> {
         if let Some(child) = self.child {
             child.evaluate_constraints(constraints, budget)?;
         }
@@ -204,7 +233,7 @@ impl<'a, 'chain> NameChain<'a, 'chain> {
             // If there are no applicable constraints, the SAN is considered valid so the default is true.
             let mut permit = true;
             if let Some(permitted_subtrees) = &constraints.permitted_subtrees {
-                for p in permitted_subtrees.unwrap_read().clone() {
+                for p in permitted_subtrees.clone() {
                     let status = self.evaluate_single_constraint(&p.base, &san, budget)?;
                     if status.is_applied() {
                         permit = status.is_match();
@@ -216,18 +245,18 @@ impl<'a, 'chain> NameChain<'a, 'chain> {
             }
 
             if !permit {
-                return Err(ValidationError::Other(
+                return Err(ValidationError::new(ValidationErrorKind::Other(
                     "no permitted name constraints matched SAN".into(),
-                ));
+                )));
             }
 
             if let Some(excluded_subtrees) = &constraints.excluded_subtrees {
-                for e in excluded_subtrees.unwrap_read().clone() {
+                for e in excluded_subtrees.clone() {
                     let status = self.evaluate_single_constraint(&e.base, &san, budget)?;
                     if status.is_match() {
-                        return Err(ValidationError::Other(
+                        return Err(ValidationError::new(ValidationErrorKind::Other(
                             "excluded name constraint matched SAN".into(),
-                        ));
+                        )));
                     }
                 }
             }
@@ -237,14 +266,14 @@ impl<'a, 'chain> NameChain<'a, 'chain> {
     }
 }
 
-pub type Chain<'a, 'c, B> = Vec<&'a VerificationCertificate<'c, B>>;
+pub type Chain<'c, B> = Vec<VerificationCertificate<'c, B>>;
 
-pub fn verify<'a, 'chain: 'a, B: CryptoOps>(
-    leaf: &'a VerificationCertificate<'chain, B>,
-    intermediates: &'a [&'a VerificationCertificate<'chain, B>],
-    policy: &'a Policy<'_, B>,
-    store: &'a Store<'chain, B>,
-) -> Result<Chain<'a, 'chain, B>, ValidationError> {
+pub fn verify<'chain, B: CryptoOps>(
+    leaf: &VerificationCertificate<'chain, B>,
+    intermediates: &[VerificationCertificate<'chain, B>],
+    policy: &Policy<'_, B>,
+    store: &Store<'chain, B>,
+) -> ValidationResult<'chain, Chain<'chain, B>, B> {
     let builder = ChainBuilder::new(intermediates, policy, store);
 
     let mut budget = Budget::new();
@@ -252,7 +281,7 @@ pub fn verify<'a, 'chain: 'a, B: CryptoOps>(
 }
 
 struct ChainBuilder<'a, 'chain, B: CryptoOps> {
-    intermediates: &'a [&'a VerificationCertificate<'chain, B>],
+    intermediates: &'a [VerificationCertificate<'chain, B>],
     policy: &'a Policy<'a, B>,
     store: &'a Store<'chain, B>,
 }
@@ -276,9 +305,9 @@ impl ApplyNameConstraintStatus {
     }
 }
 
-impl<'a, 'chain: 'a, B: CryptoOps> ChainBuilder<'a, 'chain, B> {
+impl<'a, 'chain, B: CryptoOps> ChainBuilder<'a, 'chain, B> {
     fn new(
-        intermediates: &'a [&'a VerificationCertificate<'chain, B>],
+        intermediates: &'a [VerificationCertificate<'chain, B>],
         policy: &'a Policy<'a, B>,
         store: &'a Store<'chain, B>,
     ) -> Self {
@@ -298,19 +327,19 @@ impl<'a, 'chain: 'a, B: CryptoOps> ChainBuilder<'a, 'chain, B> {
         self.store
             .get_by_subject(&cert.certificate().tbs_cert.issuer)
             .iter()
-            .chain(self.intermediates.iter().copied().filter(|&candidate| {
+            .chain(self.intermediates.iter().filter(|&candidate| {
                 candidate.certificate().subject() == cert.certificate().issuer()
             }))
     }
 
     fn build_chain_inner(
         &self,
-        working_cert: &'a VerificationCertificate<'chain, B>,
+        working_cert: &VerificationCertificate<'chain, B>,
         current_depth: u8,
         working_cert_extensions: &Extensions<'chain>,
         name_chain: NameChain<'_, 'chain>,
         budget: &mut Budget,
-    ) -> Result<Chain<'a, 'chain, B>, ValidationError> {
+    ) -> ValidationResult<'chain, Chain<'chain, B>, B> {
         if let Some(nc) = working_cert_extensions.get_extension(&NAME_CONSTRAINTS_OID) {
             name_chain.evaluate_constraints(&nc.value()?, budget)?;
         }
@@ -318,21 +347,21 @@ impl<'a, 'chain: 'a, B: CryptoOps> ChainBuilder<'a, 'chain, B> {
         // Look in the store's root set to see if the working cert is listed.
         // If it is, we've reached the end.
         if self.store.contains(working_cert) {
-            return Ok(vec![working_cert]);
+            return Ok(vec![working_cert.clone()]);
         }
 
         // Check that our current depth does not exceed our policy-configured
         // max depth. We do this after the root set check, since the depth
         // only measures the intermediate chain's length, not the root or leaf.
         if current_depth > self.policy.max_chain_depth {
-            return Err(ValidationError::Other(
+            return Err(ValidationError::new(ValidationErrorKind::Other(
                 "chain construction exceeds max depth".into(),
-            ));
+            )));
         }
 
         // Otherwise, we collect a list of potential issuers for this cert,
         // and continue with the first that verifies.
-        let mut last_err: Option<ValidationError> = None;
+        let mut last_err: Option<ValidationError<'_, B>> = None;
         for issuing_cert_candidate in self.potential_issuers(working_cert) {
             // A candidate issuer is said to verify if it both
             // signs for the working certificate and conforms to the
@@ -340,7 +369,7 @@ impl<'a, 'chain: 'a, B: CryptoOps> ChainBuilder<'a, 'chain, B> {
             let issuer_extensions = issuing_cert_candidate.certificate().extensions()?;
             match self.policy.valid_issuer(
                 issuing_cert_candidate,
-                working_cert.certificate(),
+                working_cert,
                 current_depth,
                 &issuer_extensions,
             ) {
@@ -363,9 +392,9 @@ impl<'a, 'chain: 'a, B: CryptoOps> ChainBuilder<'a, 'chain, B> {
                         // See https://gist.github.com/woodruffw/776153088e0df3fc2f0675c5e835f7b8
                         // for an example of this change.
                         current_depth.checked_add(1).ok_or_else(|| {
-                            ValidationError::Other(
+                            ValidationError::new(ValidationErrorKind::Other(
                                 "current depth calculation overflowed".to_string(),
-                            )
+                            ))
                         })?,
                         &issuer_extensions,
                         NameChain::new(
@@ -381,11 +410,16 @@ impl<'a, 'chain: 'a, B: CryptoOps> ChainBuilder<'a, 'chain, B> {
                         budget,
                     ) {
                         Ok(mut chain) => {
-                            chain.push(working_cert);
+                            chain.push(working_cert.clone());
                             return Ok(chain);
                         }
                         // Immediately return on fatal error.
-                        Err(e @ ValidationError::FatalError(..)) => return Err(e),
+                        Err(
+                            e @ ValidationError {
+                                kind: ValidationErrorKind::FatalError(..),
+                                cert: _,
+                            },
+                        ) => return Err(e),
                         Err(e) => last_err = Some(e),
                     };
                 }
@@ -395,25 +429,30 @@ impl<'a, 'chain: 'a, B: CryptoOps> ChainBuilder<'a, 'chain, B> {
 
         // We only reach this if we fail to hit our base case above, or if
         // a chain building step fails to find a next valid certificate.
-        Err(ValidationError::CandidatesExhausted(last_err.map_or_else(
-            || {
-                Box::new(ValidationError::Other(
-                    "all candidates exhausted with no interior errors".to_string(),
-                ))
-            },
-            |e| match e {
-                // Avoid spamming the user with nested `CandidatesExhausted` errors.
-                ValidationError::CandidatesExhausted(e) => e,
-                _ => Box::new(e),
-            },
-        )))
+        Err(ValidationError::new(
+            ValidationErrorKind::CandidatesExhausted(last_err.map_or_else(
+                || {
+                    Box::new(ValidationError::new(ValidationErrorKind::Other(
+                        "all candidates exhausted with no interior errors".to_string(),
+                    )))
+                },
+                |e| match e {
+                    // Avoid spamming the user with nested `CandidatesExhausted` errors.
+                    ValidationError {
+                        kind: ValidationErrorKind::CandidatesExhausted(e),
+                        cert: _,
+                    } => e,
+                    _ => Box::new(e),
+                },
+            )),
+        ))
     }
 
     fn build_chain(
         &self,
-        leaf: &'a VerificationCertificate<'chain, B>,
+        leaf: &VerificationCertificate<'chain, B>,
         budget: &mut Budget,
-    ) -> Result<Chain<'a, 'chain, B>, ValidationError> {
+    ) -> ValidationResult<'chain, Chain<'chain, B>, B> {
         // Before anything else, check whether the given leaf cert
         // is well-formed according to our policy (and its underlying
         // certificate profile).
@@ -422,7 +461,8 @@ impl<'a, 'chain: 'a, B: CryptoOps> ChainBuilder<'a, 'chain, B> {
         let leaf_extensions = leaf.certificate().extensions()?;
 
         self.policy
-            .permits_ee(leaf.certificate(), &leaf_extensions)?;
+            .permits_ee(leaf, &leaf_extensions)
+            .map_err(|e| e.set_cert(leaf.clone()))?;
 
         let mut chain = self.build_chain_inner(
             leaf,
@@ -442,23 +482,27 @@ mod tests {
     use asn1::ParseError;
     use cryptography_x509::oid::SUBJECT_ALTERNATIVE_NAME_OID;
 
-    use crate::ValidationError;
+    use crate::certificate::tests::PublicKeyErrorOps;
+    use crate::{ValidationError, ValidationErrorKind};
 
     #[test]
     fn test_validationerror_display() {
-        let err = ValidationError::Malformed(ParseError::new(asn1::ParseErrorKind::InvalidLength));
+        let err = ValidationError::<PublicKeyErrorOps>::new(ValidationErrorKind::Malformed(
+            ParseError::new(asn1::ParseErrorKind::InvalidLength),
+        ));
         assert_eq!(err.to_string(), "ASN.1 parsing error: invalid length");
 
-        let err = ValidationError::ExtensionError {
+        let err = ValidationError::<PublicKeyErrorOps>::new(ValidationErrorKind::ExtensionError {
             oid: SUBJECT_ALTERNATIVE_NAME_OID,
             reason: "duplicate extension",
-        };
+        });
         assert_eq!(
             err.to_string(),
             "invalid extension: 2.5.29.17: duplicate extension"
         );
 
-        let err = ValidationError::FatalError("oops");
+        let err =
+            ValidationError::<PublicKeyErrorOps>::new(ValidationErrorKind::FatalError("oops"));
         assert_eq!(err.to_string(), "fatal error: oops");
     }
 }

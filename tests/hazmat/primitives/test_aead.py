@@ -11,6 +11,7 @@ import sys
 import pytest
 
 from cryptography.exceptions import InvalidTag, UnsupportedAlgorithm, _Reasons
+from cryptography.hazmat.bindings._rust import openssl as rust_openssl
 from cryptography.hazmat.primitives.ciphers.aead import (
     AESCCM,
     AESGCM,
@@ -362,6 +363,16 @@ class TestAESCCM:
         assert ct2 == ct
         computed_pt2 = aesccm2.decrypt(bytearray(nonce), ct2, ad)
         assert computed_pt2 == pt
+
+    def test_max_data_length(self):
+        plaintext = b"A" * 65535
+        aad = b"authenticated but unencrypted data"
+        aesccm = AESCCM(AESCCM.generate_key(128))
+        nonce = os.urandom(13)
+
+        ciphertext = aesccm.encrypt(nonce, plaintext, aad)
+        decrypted_data = aesccm.decrypt(nonce, ciphertext, aad)
+        assert decrypted_data == plaintext
 
 
 def _load_gcm_vectors():
@@ -724,12 +735,20 @@ class TestAESSIV:
         with pytest.raises(OverflowError):
             aessiv.decrypt(b"very very irrelevant", [large_data])
 
-    def test_no_empty_encryption(self):
+    def test_empty(self):
         key = AESSIV.generate_key(256)
         aessiv = AESSIV(key)
 
-        with pytest.raises(ValueError):
-            aessiv.encrypt(b"", None)
+        if rust_openssl.CRYPTOGRAPHY_OPENSSL_350_OR_GREATER:
+            assert (
+                AESSIV(
+                    b"+'\xe4)\xfbl\x02g\x8eX\x9c\xccD7\xc5\xad\xfbD\xb31\xabm!\xea2\x17'\xe6\xec\x03\xd3T"
+                ).encrypt(b"", [b""])
+                == b"\xb2\xb25N7$\xdc\xda\xa8^\xcf\x02\x9bI\xa9\x0c"
+            )
+        else:
+            with pytest.raises(ValueError):
+                aessiv.encrypt(b"", None)
 
         with pytest.raises(InvalidTag):
             aessiv.decrypt(b"", None)
@@ -881,13 +900,30 @@ class TestAESGCMSIV:
         with pytest.raises(ValueError):
             aesgcmsiv.decrypt(nonce, pt, None)
 
-    def test_no_empty_encryption(self):
+    def test_empty(self):
         key = AESGCMSIV.generate_key(256)
         aesgcmsiv = AESGCMSIV(key)
         nonce = os.urandom(12)
 
-        with pytest.raises(ValueError):
-            aesgcmsiv.encrypt(nonce, b"", None)
+        if (
+            not rust_openssl.CRYPTOGRAPHY_OPENSSL_350_OR_GREATER
+            and not rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
+            and not rust_openssl.CRYPTOGRAPHY_IS_AWSLC
+        ):
+            with pytest.raises(ValueError):
+                aesgcmsiv.encrypt(nonce, b"", None)
+        else:
+            # From RFC 8452
+            assert (
+                AESGCMSIV(
+                    b"\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+                ).encrypt(
+                    b"\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+                    b"",
+                    b"",
+                )
+                == b"\xdc \xe2\xd8?%p[\xb4\x9eC\x9e\xcaV\xde%"
+            )
 
         with pytest.raises(InvalidTag):
             aesgcmsiv.decrypt(nonce, b"", None)
@@ -909,6 +945,15 @@ class TestAESGCMSIV:
                 ct = binascii.unhexlify(vector["ciphertext"])
                 tag = binascii.unhexlify(vector["tag"])
                 pt = binascii.unhexlify(vector.get("plaintext", b""))
+
+                # AWS-LC and BoringSSL only support AES-GCM-SIV with
+                # 128- and 256-bit keys
+                if len(key) == 24 and (
+                    rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
+                    or rust_openssl.CRYPTOGRAPHY_IS_AWSLC
+                ):
+                    continue
+
                 aesgcmsiv = AESGCMSIV(key)
                 computed_ct = aesgcmsiv.encrypt(nonce, pt, aad)
                 assert computed_ct[:-16] == ct
@@ -931,6 +976,15 @@ class TestAESGCMSIV:
                 nonce = binascii.unhexlify(vector["iv"])
                 aad = binascii.unhexlify(vector.get("aad", b""))
                 ct = binascii.unhexlify(vector["ciphertext"])
+
+                # AWS-LC and BoringSSL only support AES-GCM-SIV with
+                # 128- and 256-bit keys
+                if len(key) == 24 and (
+                    rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
+                    or rust_openssl.CRYPTOGRAPHY_IS_AWSLC
+                ):
+                    continue
+
                 aesgcmsiv = AESGCMSIV(key)
                 with pytest.raises(InvalidTag):
                     badkey = AESGCMSIV(AESGCMSIV.generate_key(256))
@@ -963,6 +1017,13 @@ class TestAESGCMSIV:
 
         with pytest.raises(ValueError):
             AESGCMSIV(b"0" * 31)
+
+        if (
+            rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
+            or rust_openssl.CRYPTOGRAPHY_IS_AWSLC
+        ):
+            with raises_unsupported_algorithm(_Reasons.UNSUPPORTED_CIPHER):
+                AESGCMSIV(b"0" * 24)
 
     def test_bad_generate_key(self, backend):
         with pytest.raises(TypeError):

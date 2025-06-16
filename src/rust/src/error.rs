@@ -5,7 +5,6 @@
 use std::fmt;
 
 use pyo3::types::PyListMethods;
-use pyo3::ToPyObject;
 
 use crate::exceptions;
 
@@ -79,6 +78,21 @@ impl From<cryptography_key_parsing::KeyParsingError> for CryptographyError {
                     exceptions::Reasons::UNSUPPORTED_ELLIPTIC_CURVE,
                 )))
             }
+            cryptography_key_parsing::KeyParsingError::UnsupportedEncryptionAlgorithm(oid) => {
+                CryptographyError::Py(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Unknown key encryption algorithm: {oid}"
+                )))
+            }
+            cryptography_key_parsing::KeyParsingError::EncryptedKeyWithoutPassword => {
+                CryptographyError::Py(pyo3::exceptions::PyTypeError::new_err(
+                    "Password was not given but private key is encrypted",
+                ))
+            }
+            cryptography_key_parsing::KeyParsingError::IncorrectPassword => {
+                CryptographyError::Py(pyo3::exceptions::PyValueError::new_err(
+                    "Incorrect password, could not decrypt key",
+                ))
+            }
         }
     }
 }
@@ -87,7 +101,7 @@ pub(crate) fn list_from_openssl_error<'p>(
     py: pyo3::Python<'p>,
     error_stack: &openssl::error::ErrorStack,
 ) -> pyo3::Bound<'p, pyo3::types::PyList> {
-    let errors = pyo3::types::PyList::empty_bound(py);
+    let errors = pyo3::types::PyList::empty(py);
     for e in error_stack.errors() {
         errors
             .append(
@@ -117,7 +131,7 @@ impl fmt::Display for CryptographyError {
                     "Could not deserialize key data. The data may be in an incorrect format, it may be encrypted with an unsupported algorithm, or it may be an unsupported key type (e.g. EC curves with explicit parameters). Details: {asn1_error}",
                 )
             }
-            CryptographyError::Py(py_error) => write!(f, "{}", py_error),
+            CryptographyError::Py(py_error) => write!(f, "{py_error}"),
             CryptographyError::OpenSSL(error_stack) => {
                 write!(
                     f,
@@ -146,7 +160,7 @@ impl From<CryptographyError> for pyo3::PyErr {
             CryptographyError::Py(py_error) => py_error,
             CryptographyError::OpenSSL(ref error_stack) => pyo3::Python::with_gil(|py| {
                 let errors = list_from_openssl_error(py, error_stack);
-                exceptions::InternalError::new_err((e.to_string(), errors.to_object(py)))
+                exceptions::InternalError::new_err((e.to_string(), errors.unbind()))
             }),
         }
     }
@@ -167,7 +181,7 @@ impl CryptographyError {
 // The primary purpose of this alias is for brevity to keep function signatures
 // to a single-line as a work around for coverage issues. See
 // https://github.com/pyca/cryptography/pull/6173
-pub(crate) type CryptographyResult<T = pyo3::PyObject> = Result<T, CryptographyError>;
+pub(crate) type CryptographyResult<T> = Result<T, CryptographyError>;
 
 #[pyo3::pyfunction]
 pub(crate) fn raise_openssl_error() -> crate::error::CryptographyResult<()> {
@@ -211,7 +225,7 @@ impl OpenSSLError {
 pub(crate) fn capture_error_stack(
     py: pyo3::Python<'_>,
 ) -> pyo3::PyResult<pyo3::Bound<'_, pyo3::types::PyList>> {
-    let errs = pyo3::types::PyList::empty_bound(py);
+    let errs = pyo3::types::PyList::empty(py);
     for e in openssl::error::ErrorStack::get().errors() {
         errs.append(pyo3::Bound::new(py, OpenSSLError { e: e.clone() })?)?;
     }

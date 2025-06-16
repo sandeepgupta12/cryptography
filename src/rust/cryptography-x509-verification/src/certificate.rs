@@ -55,6 +55,7 @@ Xw4nMqk=
         type Key = ();
         type Err = ();
         type CertificateExtra = ();
+        type PolicyExtra = ();
 
         fn public_key(&self, _cert: &Certificate<'_>) -> Result<Self::Key, Self::Err> {
             // Simulate failing to retrieve a public key.
@@ -68,6 +69,20 @@ Xw4nMqk=
         ) -> Result<(), Self::Err> {
             Ok(())
         }
+
+        fn clone_public_key(key: &Self::Key) -> Self::Key {
+            key.clone()
+        }
+
+        fn clone_extra(extra: &Self::CertificateExtra) -> Self::CertificateExtra {
+            extra.clone()
+        }
+    }
+
+    #[test]
+    fn test_clone() {
+        assert_eq!(PublicKeyErrorOps::clone_public_key(&()), ());
+        assert_eq!(PublicKeyErrorOps::clone_extra(&()), ());
     }
 
     #[test]

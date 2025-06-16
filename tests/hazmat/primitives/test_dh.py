@@ -72,6 +72,14 @@ def test_dh_parameternumbers():
         dh.DHParameterNumbers(P_1536, 2, "hello")  # type: ignore[arg-type]
 
 
+@pytest.mark.skip_fips(reason="RHEL8 FIPS doesn't like this")
+def test_dh_invalid_parameter_numbers():
+    # invalid q
+    params = dh.DHParameterNumbers(P_1536, 2, 12345)
+    with pytest.raises(ValueError):
+        params.parameters()
+
+
 def test_dh_numbers():
     params = dh.DHParameterNumbers(P_1536, 2)
 
@@ -479,6 +487,18 @@ class TestDH:
             mode="rb",
         )
         key1 = serialization.load_pem_public_key(key_bytes)
+        key2 = copy.copy(key1)
+
+        assert key1 == key2
+
+    @pytest.mark.skip_fips(reason="non-FIPS parameters")
+    def test_private_key_copy(self, backend):
+        key_bytes = load_vectors_from_file(
+            os.path.join("asymmetric", "DH", "dhkey.pem"),
+            lambda pemfile: pemfile.read(),
+            mode="rb",
+        )
+        key1 = serialization.load_pem_private_key(key_bytes, None, backend)
         key2 = copy.copy(key1)
 
         assert key1 == key2

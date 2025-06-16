@@ -2,8 +2,10 @@
 // 2.0, and the BSD License. See the LICENSE file in the root of this repository
 // for complete details.
 
-use crate::common::{AlgorithmIdentifier, Utf8StoredBMPString};
-use crate::pkcs7;
+use asn1::ObjectIdentifier;
+
+use crate::common::Utf8StoredBMPString;
+use crate::{pkcs7, pkcs8};
 
 pub const CERT_BAG_OID: asn1::ObjectIdentifier = asn1::oid!(1, 2, 840, 113549, 1, 12, 10, 1, 3);
 pub const KEY_BAG_OID: asn1::ObjectIdentifier = asn1::oid!(1, 2, 840, 113549, 1, 12, 10, 1, 1);
@@ -12,15 +14,17 @@ pub const SHROUDED_KEY_BAG_OID: asn1::ObjectIdentifier =
 pub const X509_CERTIFICATE_OID: asn1::ObjectIdentifier = asn1::oid!(1, 2, 840, 113549, 1, 9, 22, 1);
 pub const FRIENDLY_NAME_OID: asn1::ObjectIdentifier = asn1::oid!(1, 2, 840, 113549, 1, 9, 20);
 pub const LOCAL_KEY_ID_OID: asn1::ObjectIdentifier = asn1::oid!(1, 2, 840, 113549, 1, 9, 21);
+pub const JDK_TRUSTSTORE_USAGE: asn1::ObjectIdentifier =
+    asn1::oid!(2, 16, 840, 1, 113894, 746875, 1, 1);
 
-#[derive(asn1::Asn1Write)]
+#[derive(asn1::Asn1Write, asn1::Asn1Read)]
 pub struct Pfx<'a> {
     pub version: u8,
     pub auth_safe: pkcs7::ContentInfo<'a>,
     pub mac_data: Option<MacData<'a>>,
 }
 
-#[derive(asn1::Asn1Write)]
+#[derive(asn1::Asn1Write, asn1::Asn1Read)]
 pub struct MacData<'a> {
     pub mac: pkcs7::DigestInfo<'a>,
     pub salt: &'a [u8],
@@ -50,18 +54,21 @@ pub enum AttributeSet<'a> {
 
     #[defined_by(LOCAL_KEY_ID_OID)]
     LocalKeyId(asn1::SetOfWriter<'a, &'a [u8], [&'a [u8]; 1]>),
+
+    #[defined_by(JDK_TRUSTSTORE_USAGE)]
+    JDKTruststoreUsage(asn1::SetOfWriter<'a, ObjectIdentifier, [ObjectIdentifier; 1]>),
 }
 
 #[derive(asn1::Asn1DefinedByWrite)]
 pub enum BagValue<'a> {
     #[defined_by(CERT_BAG_OID)]
-    CertBag(CertBag<'a>),
+    CertBag(Box<CertBag<'a>>),
 
     #[defined_by(KEY_BAG_OID)]
     KeyBag(asn1::Tlv<'a>),
 
     #[defined_by(SHROUDED_KEY_BAG_OID)]
-    ShroudedKeyBag(EncryptedPrivateKeyInfo<'a>),
+    ShroudedKeyBag(pkcs8::EncryptedPrivateKeyInfo<'a>),
 }
 
 #[derive(asn1::Asn1Write)]
@@ -75,10 +82,4 @@ pub struct CertBag<'a> {
 pub enum CertType<'a> {
     #[defined_by(X509_CERTIFICATE_OID)]
     X509(asn1::OctetStringEncoded<crate::certificate::Certificate<'a>>),
-}
-
-#[derive(asn1::Asn1Write)]
-pub struct EncryptedPrivateKeyInfo<'a> {
-    pub encryption_algorithm: AlgorithmIdentifier<'a>,
-    pub encrypted_data: &'a [u8],
 }

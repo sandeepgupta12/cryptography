@@ -47,6 +47,7 @@ extensions = [
     "sphinx.ext.linkcode",
     "cryptography-docs",
     "sphinx_rtd_theme",
+    "sphinx_inline_tabs",
 ]
 
 if spelling is not None:
@@ -71,7 +72,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "Cryptography"
-copyright = "2013-2024, Individual Contributors"
+copyright = "2013-2025, Individual Contributors"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

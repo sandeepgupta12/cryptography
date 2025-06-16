@@ -13,7 +13,7 @@ jobs:
     if: github.repository_owner == 'pyca'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # Needed so we can push back to the repo
           persist-credentials: true
@@ -39,7 +39,7 @@ jobs:
           COMMIT_SHA: ${{ steps.check-sha-x509-limbo.outputs.COMMIT_SHA }}
       - id: check-sha-wycheproof
         run: |
-          SHA=$(git ls-remote https://github.com/C2SP/wycheproof refs/heads/master | cut -f1)
+          SHA=$(git ls-remote https://github.com/C2SP/wycheproof refs/heads/main | cut -f1)
           LAST_COMMIT=$(grep wycheproof-ref .github/actions/fetch-vectors/action.yml | grep -oE '[a-f0-9]{40}')
           if ! grep -q "$SHA" .github/actions/fetch-vectors/action.yml; then
             echo "COMMIT_SHA=${SHA}" >> $GITHUB_OUTPUT
@@ -51,7 +51,7 @@ jobs:
         run: |
           set -xe
           CURRENT_DATE=$(date "+%b %d, %Y")
-          sed -E -i "s/Latest commit on the wycheproof master branch.*/Latest commit on the wycheproof master branch, as of ${CURRENT_DATE}./" .github/actions/fetch-vectors/action.yml
+          sed -E -i "s/Latest commit on the wycheproof main branch.*/Latest commit on the wycheproof main branch, as of ${CURRENT_DATE}./" .github/actions/fetch-vectors/action.yml
           sed -E -i "s/ref: \"[0-9a-f]{40}\" # wycheproof-ref/ref: \"${COMMIT_SHA}\" # wycheproof-ref/" .github/actions/fetch-vectors/action.yml
           git status
         if: steps.check-sha-wycheproof.outputs.COMMIT_SHA
@@ -64,7 +64,7 @@ jobs:
           private_key: ${{ secrets.BORINGBOT_PRIVATE_KEY }}
         if: steps.check-sha-x509-limbo.outputs.COMMIT_SHA || steps.check-sha-wycheproof.outputs.COMMIT_SHA
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@5e914681df9dc83aa4e4905692ca88beb2f9e91f # v7.0.5
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
           branch: "bump-vectors"
           commit-message: "Bump x509-limbo and/or wycheproof in CI"

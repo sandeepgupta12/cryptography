@@ -152,7 +152,7 @@ jobs:
   ppc64le:
     runs-on: ubuntu-24.04-ppc64le
     container:
-      image: ppc64le/python:${{ matrix.PYTHON.VERSION }}-slim-bullseye
+      image: quay.io/pypa/manylinux_2_28_ppc64le
     name: "ppc64le-wheel for python-${{ matrix.PYTHON.VERSION }}"
     strategy:
       matrix:
@@ -174,8 +174,8 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Install dependencies
         run: |
-          apt-get update -y -q
-          apt-get install -y -q --no-install-recommends curl build-essential libssl-dev libffi-dev python3-dev pkg-config cmake git unzip
+          yum update -y -q
+          yum install -y -q --no-install-recommends curl build-essential libssl-dev libffi-dev python3-dev pkg-config cmake git unzip
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y

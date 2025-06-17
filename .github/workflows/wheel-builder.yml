@@ -204,8 +204,8 @@ jobs:
           echo PATH="/root/.cargo/bin:${PATH}"
       - name: Install setup tools
         run: |
-          pip install --upgrade pip
-          pip install -U setuptools wheel cffi pycparser
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -U setuptools wheel cffi pycparser
           
       - name: Install OpenSSL
         run: |

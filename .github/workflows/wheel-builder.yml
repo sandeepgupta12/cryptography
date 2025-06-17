@@ -211,7 +211,7 @@ jobs:
         run: |
           git clone https://github.com/openssl/openssl
           cd openssl
-          git checkout openssl-3.2.2
+          git checkout openssl-3.5.0
           sed -i "s/^SHLIB_VERSION=.*/SHLIB_VERSION=100/" VERSION.dat
           ./config shared no-ssl2 no-ssl3 -fPIC --prefix="/openssl"
           make depend

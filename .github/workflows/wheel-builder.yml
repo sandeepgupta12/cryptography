@@ -194,7 +194,8 @@ jobs:
       - name: Install dependencies
         run: |
           yum update -y
-          yum install -y curl build-essential libssl-dev libffi-dev python3-dev pkg-config cmake git unzip
+          yum install -y curl gcc gcc-c++ make openssl-devel libffi-devel python3-devel \
+                         pkgconfig cmake git unzip
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y

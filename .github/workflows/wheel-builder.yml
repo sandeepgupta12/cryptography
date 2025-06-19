@@ -169,6 +169,7 @@ jobs:
           path: wheelhouse/
 
   ppc64le:
+    needs: [sdist]
     runs-on: ubuntu-24.04-ppc64le
     container:
       image: ghcr.io/sandeepgupta12/cryptography-manylinux_2_28:ppc64le
@@ -231,6 +232,9 @@ jobs:
       # - name: Build Wheel
       #   run: |
       #     OPENSSL_DIR="/openssl" PATH="$HOME/.cargo/bin:$PATH" pip wheel --no-cache-dir --no-binary cryptography cryptography -w tmpwheelhouse/
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: cryptography-sdist
       - run: mkdir tmpwheelhouse
       - name: Build the wheel
         run: |

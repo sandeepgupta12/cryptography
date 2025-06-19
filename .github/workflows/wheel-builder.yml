@@ -230,7 +230,6 @@ jobs:
           mkdir wheelhouse
       - name: Build Wheel
         run: |
-          export LD_LIBRARY_PATH="/openssl/lib:$LD_LIBRARY_PATH"
           OPENSSL_DIR="/openssl" PATH="$HOME/.cargo/bin:$PATH" pip wheel --no-cache-dir --no-binary cryptography cryptography -w tmpwheelhouse/
       
       - name: Move Cryptography Wheel

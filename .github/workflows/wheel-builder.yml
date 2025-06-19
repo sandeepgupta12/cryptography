@@ -195,7 +195,7 @@ jobs:
         run: |
           yum update -y
           yum install -y curl gcc gcc-c++ make openssl-devel libffi-devel python3-devel \
-                         pkgconfig cmake git unzip
+                         pkgconfig cmake git unzip perl perl-IPC-Cmd
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y

@@ -2,18 +2,9 @@ name: CI
 on:
   pull_request: {}
   push:
-<<<<<<< HEAD
-    # branches:
-    #   - main
-    #   - '*.*.x'
-    tags:
-      - '*.*'
-      - '*.*.*'
-=======
     branches:
       - main
       - '*.*.x'
->>>>>>> 5fd3af9f81e5f38f9c19146c8e2a4bd4f8faefed
 
 permissions:
   contents: read

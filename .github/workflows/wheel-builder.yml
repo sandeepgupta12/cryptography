@@ -171,7 +171,7 @@ jobs:
   ppc64le:
     runs-on: ubuntu-24.04-ppc64le
     container:
-      image: quay.io/sandeepgupta12/cryptography-manylinux_2_28:ppc64le
+      image: ghcr.io/sandeepgupta12/cryptography-manylinux_2_28:ppc64le
     name: "ppc64le-wheel for python-${{ matrix.PYTHON.VERSION }}"
     strategy:
       matrix:

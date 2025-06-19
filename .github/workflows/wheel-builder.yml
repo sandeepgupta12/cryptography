@@ -222,16 +222,27 @@ jobs:
       # - name: Set LD_LIBRARY_PATH
       #   run: echo "export LD_LIBRARY_PATH=/openssl/lib:$LD_LIBRARY_PATH" >> ~/.bashrc
       #   shell: bash
-      - name: Create directory fow wheel
+      # - name: Create directory fow wheel
+      #   run: |
+      #     rm -rf tmpwheelhouse
+      #     mkdir tmpwheelhouse
+      #     rm -rf wheelhouse
+      #     mkdir wheelhouse
+      # - name: Build Wheel
+      #   run: |
+      #     OPENSSL_DIR="/openssl" PATH="$HOME/.cargo/bin:$PATH" pip wheel --no-cache-dir --no-binary cryptography cryptography -w tmpwheelhouse/
+      - run: mkdir tmpwheelhouse
+      - name: Build the wheel
         run: |
-          rm -rf tmpwheelhouse
-          mkdir tmpwheelhouse
-          rm -rf wheelhouse
-          mkdir wheelhouse
-      - name: Build Wheel
-        run: |
-          OPENSSL_DIR="/openssl" PATH="$HOME/.cargo/bin:$PATH" pip wheel --no-cache-dir --no-binary cryptography cryptography -w tmpwheelhouse/
-      
+          if [ -n "${{ matrix.PYTHON.ABI_VERSION }}" ]; then
+              PY_LIMITED_API="--config-settings=build-args=--features=pyo3/abi3-${{ matrix.PYTHON.ABI_VERSION }}"
+          fi
+
+          OPENSSL_DIR="/opt/pyca/cryptography/openssl" \
+              OPENSSL_STATIC=1 \
+              uv build --python=/opt/python/${{ matrix.PYTHON.VERSION }}/bin/python --wheel --require-hashes --build-constraint=$BUILD_REQUIREMENTS_PATH $PY_LIMITED_API cryptography*.tar.gz -o tmpwheelhouse/
+        env:
+          RUSTUP_HOME: /root/.rustup
       - name: Move Cryptography Wheel
         run: cp -f tmpwheelhouse/cryptography*.whl wheelhouse/
       - run: pip install --require-hashes -r $BUILD_REQUIREMENTS_PATH

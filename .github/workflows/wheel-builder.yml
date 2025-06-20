@@ -254,21 +254,42 @@ jobs:
               uv build --python=/opt/python/${{ matrix.PYTHON.VERSION }}/bin/python --wheel --require-hashes --build-constraint=$BUILD_REQUIREMENTS_PATH $PY_LIMITED_API cryptography*.tar.gz -o tmpwheelhouse/
         env:
           RUSTUP_HOME: /root/.rustup
-      - name: Move Cryptography Wheel
-        run: cp -f tmpwheelhouse/cryptography*.whl wheelhouse/
-      - run: pip install --require-hashes -r $BUILD_REQUIREMENTS_PATH
-      - name: Install wheel
-        run: pip install cryptography --no-index -f wheelhouse/
-        
-      - name: Test wheel
-        run: |
-          export LD_LIBRARY_PATH="/openssl/lib:$LD_LIBRARY_PATH"
-          python -c "from cryptography.hazmat.backends.openssl.backend import backend; print('Loaded: ' + backend.openssl_version_text()); print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"
+      - run: auditwheel repair --plat ${{ matrix.MANYLINUX.NAME }} tmpwheelhouse/cryptography*.whl -w wheelhouse/
+      - run: unzip wheelhouse/*.whl -d execstack.check
+      - run: |
+          results=$(readelf -lW execstack.check/cryptography/hazmat/bindings/*.so)
+          count=$(echo "$results" | grep -c 'GNU_STACK.*[R ][W ]E' || true)
+          if [ "$count" -ne 0 ]; then
+            exit 1
+          else
+            exit 0
+          fi
 
-      - uses: actions/upload-artifact@v4.4.0
+      - run: uv venv --python=/opt/python/${{ matrix.PYTHON.VERSION }}/bin/python
+      - run: uv pip install --require-hashes -r $BUILD_REQUIREMENTS_PATH
+      - run: uv pip install cryptography --no-index -f wheelhouse/
+      - run: |
+          echo "from cryptography.hazmat.backends.openssl.backend import backend;print('Loaded: ' + backend.openssl_version_text());print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))" | uv run -
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: "cryptography-ppc64le"
+          name: "cryptography-${{ github.event.inputs.version }}-${{ matrix.MANYLINUX.NAME }}-${{ matrix.PYTHON.VERSION }}-${{ matrix.PYTHON.ABI_VERSION }}"
           path: wheelhouse/
+      # - name: Move Cryptography Wheel
+      #   run: cp -f tmpwheelhouse/cryptography*.whl wheelhouse/
+      # - run: pip install --require-hashes -r $BUILD_REQUIREMENTS_PATH
+      # - name: Install wheel
+      #   run: pip install cryptography --no-index -f wheelhouse/
+        
+      # - name: Test wheel
+      #   run: |
+      #     export LD_LIBRARY_PATH="/openssl/lib:$LD_LIBRARY_PATH"
+      #     python -c "from cryptography.hazmat.backends.openssl.backend import backend; print('Loaded: ' + backend.openssl_version_text()); print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"
+
+      # - uses: actions/upload-artifact@v4.4.0
+      #   with:
+      #     name: "cryptography-ppc64le"
+      #     path: wheelhouse/
           
   macos:
     needs: [sdist]

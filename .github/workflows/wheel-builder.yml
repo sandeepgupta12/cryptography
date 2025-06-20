@@ -180,7 +180,7 @@ jobs:
     strategy:
       matrix:
         PYTHON:
-          - VERSION: "3.12"
+          - VERSION: "cp311-cp311"
         
     steps:
       # - name: Clean workspace

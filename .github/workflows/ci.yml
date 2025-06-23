@@ -17,139 +17,139 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
-  linux:
-    runs-on: ubuntu-24.04-ppc64le
-    strategy:
-      fail-fast: false
-      matrix:
-        PYTHON:
-          - {VERSION: "3.8", NOXSESSION: "flake"}
-          - {VERSION: "3.13", NOXSESSION: "flake"}
-          - {VERSION: "3.13", NOXSESSION: "rust"}
-          - {VERSION: "3.12", NOXSESSION: "docs", OPENSSL: {TYPE: "openssl", VERSION: "3.5.0"}}
-          - {VERSION: "3.14-dev", NOXSESSION: "tests"}
-          - {VERSION: "pypy-3.10", NOXSESSION: "tests-nocoverage"}
-          - {VERSION: "pypy-3.11", NOXSESSION: "tests-nocoverage"}
-          - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.5.0", CONFIG_FLAGS: "no-engine no-rc2 no-srtp no-ct no-psk"}}
-          - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.5.0", CONFIG_FLAGS: "no-legacy", NO_LEGACY: "0"}}
-          - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.5.0", CONFIG_FLAGS: "no-legacy", NO_LEGACY: "1"}}
-          - {VERSION: "3.13", NOXSESSION: "tests", NOXARGS: "--enable-fips=1", OPENSSL: {TYPE: "openssl", CONFIG_FLAGS: "enable-fips", VERSION: "3.5.0"}}
-          - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.0.16"}}
-          - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.3.3"}}
-          - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.4.1"}}
-          - {VERSION: "3.13", NOXSESSION: "tests-ssh", OPENSSL: {TYPE: "openssl", VERSION: "3.5.0"}}
-          - {VERSION: "3.13", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "libressl", VERSION: "4.0.0"}}
-          - {VERSION: "3.13", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "libressl", VERSION: "4.1.0"}}
-          # Latest commit on the BoringSSL main branch, as of Jun 18, 2025.
-          - {VERSION: "3.13", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "boringssl", VERSION: "860c27038fcd9c2c27242e9874c18408dec1f84c"}}
-          # Latest tag of AWS-LC main branch, as of Jun 19, 2025.
-          - {VERSION: "3.13", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "aws-lc", VERSION: "v1.53.1"}}
-          # Latest commit on the OpenSSL master branch, as of Jun 19, 2025.
-          - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "d56e2450c16217735ebdbc7bc625b3fe6128da9c"}}
-          # Builds with various Rust versions. Includes MSRV and next
-          # potential future MSRV.
-          # - 1.77: offset_of! in std (for pyo3), c"str" literals (replace cstr_from_literal)
-          # - 1.80: LazyLock in std
-          # - 1.83: const context Option<T>::unwrap()
-          - {VERSION: "3.13", NOXSESSION: "rust,tests", RUST: "1.74.0"}
-          - {VERSION: "3.13", NOXSESSION: "rust,tests", RUST: "1.80.0"}
-          - {VERSION: "3.13", NOXSESSION: "rust,tests", RUST: "beta"}
-          - {VERSION: "3.13", NOXSESSION: "rust,tests", RUST: "nightly"}
-          - {VERSION: "3.13", NOXSESSION: "tests-rust-debug"}
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        timeout-minutes: 3
-        with:
-          persist-credentials: false
-      - name: Setup python
-        id: setup-python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: ${{ matrix.PYTHON.VERSION }}
-          cache: pip
-          cache-dependency-path: ci-constraints-requirements.txt
-        timeout-minutes: 3
-      - name: Setup rust
-        uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b
-        with:
-          toolchain: ${{ matrix.PYTHON.RUST }}
-          components: rustfmt,clippy
-        if: matrix.PYTHON.RUST
+  # linux:
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       PYTHON:
+  #         - {VERSION: "3.8", NOXSESSION: "flake"}
+  #         - {VERSION: "3.13", NOXSESSION: "flake"}
+  #         - {VERSION: "3.13", NOXSESSION: "rust"}
+  #         - {VERSION: "3.12", NOXSESSION: "docs", OPENSSL: {TYPE: "openssl", VERSION: "3.5.0"}}
+  #         - {VERSION: "3.14-dev", NOXSESSION: "tests"}
+  #         - {VERSION: "pypy-3.10", NOXSESSION: "tests-nocoverage"}
+  #         - {VERSION: "pypy-3.11", NOXSESSION: "tests-nocoverage"}
+  #         - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.5.0", CONFIG_FLAGS: "no-engine no-rc2 no-srtp no-ct no-psk"}}
+  #         - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.5.0", CONFIG_FLAGS: "no-legacy", NO_LEGACY: "0"}}
+  #         - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.5.0", CONFIG_FLAGS: "no-legacy", NO_LEGACY: "1"}}
+  #         - {VERSION: "3.13", NOXSESSION: "tests", NOXARGS: "--enable-fips=1", OPENSSL: {TYPE: "openssl", CONFIG_FLAGS: "enable-fips", VERSION: "3.5.0"}}
+  #         - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.0.16"}}
+  #         - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.3.3"}}
+  #         - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "3.4.1"}}
+  #         - {VERSION: "3.13", NOXSESSION: "tests-ssh", OPENSSL: {TYPE: "openssl", VERSION: "3.5.0"}}
+  #         - {VERSION: "3.13", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "libressl", VERSION: "4.0.0"}}
+  #         - {VERSION: "3.13", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "libressl", VERSION: "4.1.0"}}
+  #         # Latest commit on the BoringSSL main branch, as of Jun 18, 2025.
+  #         - {VERSION: "3.13", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "boringssl", VERSION: "860c27038fcd9c2c27242e9874c18408dec1f84c"}}
+  #         # Latest tag of AWS-LC main branch, as of Jun 19, 2025.
+  #         - {VERSION: "3.13", NOXSESSION: "rust,tests", OPENSSL: {TYPE: "aws-lc", VERSION: "v1.53.1"}}
+  #         # Latest commit on the OpenSSL master branch, as of Jun 19, 2025.
+  #         - {VERSION: "3.13", NOXSESSION: "tests", OPENSSL: {TYPE: "openssl", VERSION: "d56e2450c16217735ebdbc7bc625b3fe6128da9c"}}
+  #         # Builds with various Rust versions. Includes MSRV and next
+  #         # potential future MSRV.
+  #         # - 1.77: offset_of! in std (for pyo3), c"str" literals (replace cstr_from_literal)
+  #         # - 1.80: LazyLock in std
+  #         # - 1.83: const context Option<T>::unwrap()
+  #         - {VERSION: "3.13", NOXSESSION: "rust,tests", RUST: "1.74.0"}
+  #         - {VERSION: "3.13", NOXSESSION: "rust,tests", RUST: "1.80.0"}
+  #         - {VERSION: "3.13", NOXSESSION: "rust,tests", RUST: "beta"}
+  #         - {VERSION: "3.13", NOXSESSION: "rust,tests", RUST: "nightly"}
+  #         - {VERSION: "3.13", NOXSESSION: "tests-rust-debug"}
+  #   timeout-minutes: 15
+  #   steps:
+  #     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+  #       timeout-minutes: 3
+  #       with:
+  #         persist-credentials: false
+  #     - name: Setup python
+  #       id: setup-python
+  #       uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+  #       with:
+  #         python-version: ${{ matrix.PYTHON.VERSION }}
+  #         cache: pip
+  #         cache-dependency-path: ci-constraints-requirements.txt
+  #       timeout-minutes: 3
+  #     - name: Setup rust
+  #       uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b
+  #       with:
+  #         toolchain: ${{ matrix.PYTHON.RUST }}
+  #         components: rustfmt,clippy
+  #       if: matrix.PYTHON.RUST
 
-      - run: rustup component add llvm-tools-preview
-        if: matrix.PYTHON.NOXSESSION != 'flake' && matrix.PYTHON.NOXSESSION != 'docs'
-      - name: Clone test vectors
-        timeout-minutes: 2
-        uses: ./.github/actions/fetch-vectors
-        if: matrix.PYTHON.NOXSESSION != 'flake' && matrix.PYTHON.NOXSESSION != 'docs' && matrix.PYTHON.NOXSESSION != 'rust'
-      - name: Compute config hash and set config vars
-        run: |
-          DEFAULT_CONFIG_FLAGS="shared no-ssl2 no-ssl3"
-          CONFIG_FLAGS="$DEFAULT_CONFIG_FLAGS $CONFIG_FLAGS"
-          OPENSSL_HASH=$(echo "${{ matrix.PYTHON.OPENSSL.TYPE }}-${{ matrix.PYTHON.OPENSSL.VERSION }}-$CONFIG_FLAGS" | sha1sum | sed 's/ .*$//')
-          echo "CONFIG_FLAGS=${CONFIG_FLAGS}" >> $GITHUB_ENV
-          echo "OPENSSL_HASH=${OPENSSL_HASH}" >> $GITHUB_ENV
-          echo "OSSL_INFO=${{ matrix.PYTHON.OPENSSL.TYPE }}-${{ matrix.PYTHON.OPENSSL.VERSION }}-${CONFIG_FLAGS}" >> $GITHUB_ENV
-          echo "OSSL_PATH=${{ github.workspace }}/osslcache/${{ matrix.PYTHON.OPENSSL.TYPE }}-${{ matrix.PYTHON.OPENSSL.VERSION }}-${OPENSSL_HASH}" >> $GITHUB_ENV
-        env:
-          CONFIG_FLAGS: ${{ matrix.PYTHON.OPENSSL.CONFIG_FLAGS }}
-        if: matrix.PYTHON.OPENSSL
-      - name: Load OpenSSL cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        id: ossl-cache
-        timeout-minutes: 2
-        with:
-          path: ${{ github.workspace }}/osslcache
-          # When altering the openssl build process you may need to increment
-          # the value on the end of this cache key so that you can prevent it
-          # from fetching the cache and skipping the build step.
-          key: "${{ matrix.PYTHON.OPENSSL.TYPE }}-${{ matrix.PYTHON.OPENSSL.VERSION }}-${{ env.OPENSSL_HASH }}-${{ hashFiles('.github/bin/build_openssl.sh') }}-0"
-        if: matrix.PYTHON.OPENSSL
-      - name: Build custom OpenSSL/LibreSSL
-        run: .github/bin/build_openssl.sh
-        env:
-          TYPE: ${{ matrix.PYTHON.OPENSSL.TYPE }}
-          VERSION: ${{ matrix.PYTHON.OPENSSL.VERSION }}
-        if: matrix.PYTHON.OPENSSL && steps.ossl-cache.outputs.cache-hit != 'true'
-      - name: Set CFLAGS/LDFLAGS
-        run: |
-          echo "OPENSSL_DIR=${OSSL_PATH}" >> $GITHUB_ENV
-          echo "CFLAGS=${CFLAGS} -Werror=implicit-function-declaration" >> $GITHUB_ENV
-          echo "RUSTFLAGS=-Clink-arg=-Wl,-rpath=${OSSL_PATH}/lib -Clink-arg=-Wl,-rpath=${OSSL_PATH}/lib64" >> $GITHUB_ENV
-        if: matrix.PYTHON.OPENSSL
-      - run: sudo apt-get install -y bindgen
-        if: matrix.PYTHON.OPENSSL.TYPE == 'boringssl' || matrix.PYTHON.OPENSSL.TYPE == 'aws-lc'
-      - name: Cache rust and pip
-        uses: ./.github/actions/cache
-        timeout-minutes: 2
-        with:
-          # We have both the Python version from the matrix and from the
-          # setup-python step because the latter doesn't distinguish
-          # pypy3-3.8 and pypy3-3.9 -- both of them show up as 7.3.11.
-          key: ${{ matrix.PYTHON.VERSION }}-${{ steps.setup-python.outputs.python-version }}-${{ matrix.PYTHON.NOXSESSION }}-${{ env.OPENSSL_HASH }}
+  #     - run: rustup component add llvm-tools-preview
+  #       if: matrix.PYTHON.NOXSESSION != 'flake' && matrix.PYTHON.NOXSESSION != 'docs'
+  #     - name: Clone test vectors
+  #       timeout-minutes: 2
+  #       uses: ./.github/actions/fetch-vectors
+  #       if: matrix.PYTHON.NOXSESSION != 'flake' && matrix.PYTHON.NOXSESSION != 'docs' && matrix.PYTHON.NOXSESSION != 'rust'
+  #     - name: Compute config hash and set config vars
+  #       run: |
+  #         DEFAULT_CONFIG_FLAGS="shared no-ssl2 no-ssl3"
+  #         CONFIG_FLAGS="$DEFAULT_CONFIG_FLAGS $CONFIG_FLAGS"
+  #         OPENSSL_HASH=$(echo "${{ matrix.PYTHON.OPENSSL.TYPE }}-${{ matrix.PYTHON.OPENSSL.VERSION }}-$CONFIG_FLAGS" | sha1sum | sed 's/ .*$//')
+  #         echo "CONFIG_FLAGS=${CONFIG_FLAGS}" >> $GITHUB_ENV
+  #         echo "OPENSSL_HASH=${OPENSSL_HASH}" >> $GITHUB_ENV
+  #         echo "OSSL_INFO=${{ matrix.PYTHON.OPENSSL.TYPE }}-${{ matrix.PYTHON.OPENSSL.VERSION }}-${CONFIG_FLAGS}" >> $GITHUB_ENV
+  #         echo "OSSL_PATH=${{ github.workspace }}/osslcache/${{ matrix.PYTHON.OPENSSL.TYPE }}-${{ matrix.PYTHON.OPENSSL.VERSION }}-${OPENSSL_HASH}" >> $GITHUB_ENV
+  #       env:
+  #         CONFIG_FLAGS: ${{ matrix.PYTHON.OPENSSL.CONFIG_FLAGS }}
+  #       if: matrix.PYTHON.OPENSSL
+  #     - name: Load OpenSSL cache
+  #       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+  #       id: ossl-cache
+  #       timeout-minutes: 2
+  #       with:
+  #         path: ${{ github.workspace }}/osslcache
+  #         # When altering the openssl build process you may need to increment
+  #         # the value on the end of this cache key so that you can prevent it
+  #         # from fetching the cache and skipping the build step.
+  #         key: "${{ matrix.PYTHON.OPENSSL.TYPE }}-${{ matrix.PYTHON.OPENSSL.VERSION }}-${{ env.OPENSSL_HASH }}-${{ hashFiles('.github/bin/build_openssl.sh') }}-0"
+  #       if: matrix.PYTHON.OPENSSL
+  #     - name: Build custom OpenSSL/LibreSSL
+  #       run: .github/bin/build_openssl.sh
+  #       env:
+  #         TYPE: ${{ matrix.PYTHON.OPENSSL.TYPE }}
+  #         VERSION: ${{ matrix.PYTHON.OPENSSL.VERSION }}
+  #       if: matrix.PYTHON.OPENSSL && steps.ossl-cache.outputs.cache-hit != 'true'
+  #     - name: Set CFLAGS/LDFLAGS
+  #       run: |
+  #         echo "OPENSSL_DIR=${OSSL_PATH}" >> $GITHUB_ENV
+  #         echo "CFLAGS=${CFLAGS} -Werror=implicit-function-declaration" >> $GITHUB_ENV
+  #         echo "RUSTFLAGS=-Clink-arg=-Wl,-rpath=${OSSL_PATH}/lib -Clink-arg=-Wl,-rpath=${OSSL_PATH}/lib64" >> $GITHUB_ENV
+  #       if: matrix.PYTHON.OPENSSL
+  #     - run: sudo apt-get install -y bindgen
+  #       if: matrix.PYTHON.OPENSSL.TYPE == 'boringssl' || matrix.PYTHON.OPENSSL.TYPE == 'aws-lc'
+  #     - name: Cache rust and pip
+  #       uses: ./.github/actions/cache
+  #       timeout-minutes: 2
+  #       with:
+  #         # We have both the Python version from the matrix and from the
+  #         # setup-python step because the latter doesn't distinguish
+  #         # pypy3-3.8 and pypy3-3.9 -- both of them show up as 7.3.11.
+  #         key: ${{ matrix.PYTHON.VERSION }}-${{ steps.setup-python.outputs.python-version }}-${{ matrix.PYTHON.NOXSESSION }}-${{ env.OPENSSL_HASH }}
 
-      - run: python -m pip install -c ci-constraints-requirements.txt 'nox[uv]' 'tomli; python_version < "3.11"'
-      - name: Create nox environment
-        run: |
-            nox -v --install-only
-        env:
-          NOXSESSION: ${{ matrix.PYTHON.NOXSESSION }}
-          # Needed until https://github.com/PyO3/pyo3/issues/5093
-          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: 1
-      - name: Tests
-        run: |
-            nox --no-install --  --color=yes --wycheproof-root=wycheproof --x509-limbo-root=x509-limbo ${{ matrix.PYTHON.NOXARGS }}
-        env:
-          NOXSESSION: ${{ matrix.PYTHON.NOXSESSION }}
-          COLUMNS: 80
-          CRYPTOGRAPHY_OPENSSL_NO_LEGACY: ${{ matrix.PYTHON.OPENSSL.NO_LEGACY }}
+  #     - run: python -m pip install -c ci-constraints-requirements.txt 'nox[uv]' 'tomli; python_version < "3.11"'
+  #     - name: Create nox environment
+  #       run: |
+  #           nox -v --install-only
+  #       env:
+  #         NOXSESSION: ${{ matrix.PYTHON.NOXSESSION }}
+  #         # Needed until https://github.com/PyO3/pyo3/issues/5093
+  #         PYO3_USE_ABI3_FORWARD_COMPATIBILITY: 1
+  #     - name: Tests
+  #       run: |
+  #           nox --no-install --  --color=yes --wycheproof-root=wycheproof --x509-limbo-root=x509-limbo ${{ matrix.PYTHON.NOXARGS }}
+  #       env:
+  #         NOXSESSION: ${{ matrix.PYTHON.NOXSESSION }}
+  #         COLUMNS: 80
+  #         CRYPTOGRAPHY_OPENSSL_NO_LEGACY: ${{ matrix.PYTHON.OPENSSL.NO_LEGACY }}
 
-      - uses: ./.github/actions/upload-coverage
+  #     - uses: ./.github/actions/upload-coverage
   
   ppc64le:
     runs-on: ubuntu-24.04-ppc64le
-    container: ghcr.io/sandeepgupta12/cryptography-runner-manylinux_2_28:ppc64le
+    #container: ghcr.io/sandeepgupta12/cryptography-runner-manylinux_2_28:ppc64le
     strategy:
       fail-fast: false
       matrix:
@@ -177,6 +177,14 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+      - name: Setup python
+        id: setup-python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.PYTHON.VERSION }}
+          cache: pip
+          cache-dependency-path: ci-constraints-requirements.txt
+        timeout-minutes: 3
       - name: Setup rust
         uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b
         with:

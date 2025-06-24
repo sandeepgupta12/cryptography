@@ -170,14 +170,14 @@ jobs:
 
       - name: Run nox install
         run: |
-          source venv/bin/activate
+          source /tmp/venv/bin/activate
           nox -v --install-only
         env:
           NOXSESSION: tests
 
       - name: Run nox tests
         run: |
-          source $HOME/venv/bin/activate
+          source /tmp/venv/bin/activate
           nox --no-install -- --color=yes --wycheproof-root="wycheproof" --x509-limbo-root="x509-limbo"
         env:
           NOXSESSION: tests

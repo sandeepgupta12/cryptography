@@ -188,6 +188,9 @@ jobs:
           nox --no-install -- --color=yes --wycheproof-root="wycheproof" --x509-limbo-root="x509-limbo"
         env:
           NOXSESSION: tests
+          OPENSSL_DIR: /opt/pyca/cryptography/openssl
+          OPENSSL_STATIC: "1"
+          PKG_CONFIG_PATH: /opt/pyca/cryptography/openssl/lib/pkgconfig
       
       # - name: Set up dynamic names
       #   id: vars

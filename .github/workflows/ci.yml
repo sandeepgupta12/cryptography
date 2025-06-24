@@ -159,14 +159,13 @@ jobs:
           submodules: recursive
       - name: Set up Python 3.12 (manual setup)
         run: |
-          yum -y update
-          yum -y install python3.12 python3.12-venv python3.12-dev python3-pip
-          python3.12 -m venv $HOME/venv
-          $HOME/venv/bin/pip install -U pip
+          /opt/python/cp312-cp312/bin/python -m venv /tmp/venv
+          source /tmp/venv/bin/activate
+          pip install -U pip
 
       - name: Install dependencies
         run: |
-          
+          source /tmp/venv/bin/activate
           pip install -c ci-constraints-requirements.txt 'nox[uv]' 'tomli; python_version < "3.11"'
 
       - name: Run nox install

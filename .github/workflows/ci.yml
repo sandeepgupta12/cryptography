@@ -177,7 +177,7 @@ jobs:
           source /tmp/venv/bin/activate
           nox -v --install-only
         env:
-          NOXSESSION: tests
+          NOXSESSION: flake
           OPENSSL_DIR: /opt/pyca/cryptography/openssl
           OPENSSL_STATIC: "1"
           PKG_CONFIG_PATH: /opt/pyca/cryptography/openssl/lib/pkgconfig
@@ -187,7 +187,7 @@ jobs:
           source /tmp/venv/bin/activate
           nox --no-install -- --color=yes --wycheproof-root="wycheproof" --x509-limbo-root="x509-limbo"
         env:
-          NOXSESSION: tests
+          NOXSESSION: flake
           OPENSSL_DIR: /opt/pyca/cryptography/openssl
           OPENSSL_STATIC: "1"
           PKG_CONFIG_PATH: /opt/pyca/cryptography/openssl/lib/pkgconfig

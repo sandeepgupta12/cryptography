@@ -163,6 +163,10 @@ jobs:
           source /tmp/venv/bin/activate
           pip install -U pip
 
+      - name: Set up Rust
+        run: |
+          rustup default stable
+          rustup show
       - name: Install dependencies
         run: |
           source /tmp/venv/bin/activate

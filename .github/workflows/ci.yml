@@ -193,7 +193,7 @@ jobs:
 
       - name: Run nox install
         run: |
-          source $HOME/venv/bin/activate
+          source venv/bin/activate
           nox -v --install-only
         env:
           NOXSESSION: tests

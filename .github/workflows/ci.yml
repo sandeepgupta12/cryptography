@@ -178,6 +178,9 @@ jobs:
           nox -v --install-only
         env:
           NOXSESSION: tests
+          OPENSSL_DIR: /opt/pyca/cryptography/openssl
+          OPENSSL_STATIC: "1"
+          PKG_CONFIG_PATH: /opt/pyca/cryptography/openssl/lib/pkgconfig
 
       - name: Run nox tests
         run: |

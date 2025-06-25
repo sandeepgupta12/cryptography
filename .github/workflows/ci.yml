@@ -29,11 +29,11 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
-      - name: Cache rust and pip
-        uses: ./.github/actions/cache
-        timeout-minutes: 2
-        with:
-          key: ubuntu-local
+      # - name: Cache rust and pip
+      #   uses: ./.github/actions/cache
+      #   timeout-minutes: 2
+      #   with:
+      #     key: ubuntu-local
 
       - name: Clone test vectors
         timeout-minutes: 2
@@ -42,101 +42,13 @@ jobs:
       # apparent user so pip refuses to create a cache dir
       - name: create pip cache dir
         run: mkdir -p "${HOME}/.cache/pip"
-      #- run: rustup component add llvm-tools-preview
-      # - name: Set up Rust
-      #   run: |
-      #     rustup default stable
-      #     rustup show
 
       - run: /venv/bin/python -m pip install -c ci-constraints-requirements.txt 'nox[uv]' 'tomli; python_version < "3.11"'
       - run: '/venv/bin/nox -v --install-only'
-        
-        env:
-          # OPENSSL_ENABLE_SHA1_SIGNATURES is for CentOS 9 Stream
-          
+        env:  
           NOXSESSION: tests
 
       - run: '/venv/bin/nox --no-install --  --color=yes --wycheproof-root="wycheproof" --x509-limbo-root="x509-limbo"'
         env:
-          
           NOXSESSION: tests
           
-      # - name: Set up Rust
-      #   run: |
-      #     rustup default stable
-      #     rustup show
-      # - name: Install dependencies
-      #   run: |
-      #     source /tmp/venv/bin/activate
-      #     pip install -c ci-constraints-requirements.txt 'nox[uv]' 'tomli; python_version < "3.11"'
-
-      # - name: Clone test vectors
-      #   timeout-minutes: 2
-      #   uses: ./.github/actions/fetch-vectors
-      # - name: Run nox install
-      #   run: |
-      #     source /tmp/venv/bin/activate
-      #     nox -v --install-only
-      #   env:
-      #     NOXSESSION: tests
-      #     OPENSSL_DIR: /opt/pyca/cryptography/openssl
-      #     OPENSSL_STATIC: "1"
-      #     PKG_CONFIG_PATH: /opt/pyca/cryptography/openssl/lib/pkgconfig
-
-      # - name: Run nox tests
-      #   run: |
-      #     source /tmp/venv/bin/activate
-      #     nox --no-install -- --color=yes --wycheproof-root="wycheproof" --x509-limbo-root="x509-limbo"
-      #   env:
-      #     NOXSESSION: tests
-      #     OPENSSL_DIR: /opt/pyca/cryptography/openssl
-      #     OPENSSL_STATIC: "1"
-      #     PKG_CONFIG_PATH: /opt/pyca/cryptography/openssl/lib/pkgconfig
-      
-      # - name: Set up dynamic names
-      #   id: vars
-      #   run: |
-      #     echo "IMAGE_NAME=ppc64le-python-image-${{ github.run_id }}" >> $GITHUB_ENV
-      #     echo "CONTAINER_NAME=ppc64le-cryptography-container-${{ github.run_id }}" >> $GITHUB_ENV
-  
-      # - name: Build Docker image
-      #   run: |
-      #       docker build -t $IMAGE_NAME -f .github/workflows/ppc64le.dockerfile .
-      
-      # - name: Create and start Docker container
-      #   run: |
-      #     docker run --name $CONTAINER_NAME -d $IMAGE_NAME tail -f /dev/null
-
-      # - name: Run build and tests inside Docker container
-      #   run: |
-
-      #     NOXARGS_OPTION=""
-      #     RUST_OPTION=""
-
-      #     # Set NOXARGS_OPTION only if NOXARGS is provided
-      #     if [ -n "${{ matrix.PYTHON.NOXARGS }}" ]; then
-      #       NOXARGS_OPTION="--noxargs '${{ matrix.PYTHON.NOXARGS }}'"
-      #     fi
-
-      #     # Set RUST_OPTION only if RUST is provided
-      #     if [ -n "${{ matrix.PYTHON.RUST }}" ]; then
-      #       RUST_OPTION="--rust '${{ matrix.PYTHON.RUST }}'"
-      #     fi
-
-      #     docker exec \
-      #     -e CONFIG_FLAGS_ARG=${{ matrix.PYTHON.OPENSSL.CONFIG_FLAGS }} \
-      #     -e CRYPTOGRAPHY_OPENSSL_NO_LEGACY="${{ matrix.PYTHON.OPENSSL.NO_LEGACY }}" \
-      #     $CONTAINER_NAME bash -c "/cryptography/.github/workflows/ppc64le-script.sh \
-      #     --python-version ${{ matrix.PYTHON.VERSION }} \
-      #     --noxsession ${{ matrix.PYTHON.NOXSESSION }} \
-      #     --openssl-type ${{ matrix.PYTHON.OPENSSL.TYPE }} \
-      #     --openssl-version ${{ matrix.PYTHON.OPENSSL.VERSION }} \
-      #     $NOXARGS_OPTION \
-      #     $RUST_OPTION"
-
-      # - name: Clean up Docker image and container
-      #   if: always()  # Ensures cleanup runs even if previous steps fail
-      #   run: |
-      #     docker stop $CONTAINER_NAME
-      #     docker rm $CONTAINER_NAME
-      #     docker rmi $IMAGE_NAME:latest

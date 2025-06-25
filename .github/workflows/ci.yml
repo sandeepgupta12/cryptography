@@ -173,6 +173,7 @@ jobs:
       
       - run: /venv/bin/python -m pip install -c ci-constraints-requirements.txt 'nox[uv]' 'tomli; python_version < "3.11"'
       - run: '/venv/bin/nox -v --install-only'
+        shell: bash
         env:
           # OPENSSL_ENABLE_SHA1_SIGNATURES is for CentOS 9 Stream
           OPENSSL_ENABLE_SHA1_SIGNATURES: 1

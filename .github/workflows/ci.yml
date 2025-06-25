@@ -149,7 +149,7 @@ jobs:
   
   ppc64le:
     runs-on: ubuntu-24.04-ppc64le
-    container: ghcr.io/sandeepgupta12/cryptography-manylinux_2_28:ppc64le
+    container: ghcr.io/sandeepgupta12/cryptography-runner-ubuntu-focal:ppc64le
     name: "ppc64le - tests (Python 3.12)"
     
     steps:
@@ -157,43 +157,57 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
-      - name: Set up Python 3.12 (manual setup)
-        run: |
-          /opt/python/cp312-cp312/bin/python -m venv /tmp/venv
-          source /tmp/venv/bin/activate
-          pip install -U pip
-
-      - name: Set up Rust
-        run: |
-          rustup default stable
-          rustup show
-      - name: Install dependencies
-        run: |
-          source /tmp/venv/bin/activate
-          pip install -c ci-constraints-requirements.txt 'nox[uv]' 'tomli; python_version < "3.11"'
+      - name: Cache rust and pip
+        uses: ./.github/actions/cache
+        timeout-minutes: 2
+        with:
+          key: ubuntu-focal
 
       - name: Clone test vectors
         timeout-minutes: 2
         uses: ./.github/actions/fetch-vectors
-      - name: Run nox install
-        run: |
-          source /tmp/venv/bin/activate
-          nox -v --install-only
+      # When run in a docker container the home directory doesn't have the same owner as the
+      # apparent user so pip refuses to create a cache dir
+      - name: create pip cache dir
+        run: mkdir -p "${HOME}/.cache/pip"
+      
+      - run: /venv/bin/python -m pip install -c ci-constraints-requirements.txt 'nox[uv]' 'tomli; python_version < "3.11"'
+      - run: '/venv/bin/nox -v --install-only'
         env:
+          # OPENSSL_ENABLE_SHA1_SIGNATURES is for CentOS 9 Stream
+          OPENSSL_ENABLE_SHA1_SIGNATURES: 1
           NOXSESSION: tests
-          OPENSSL_DIR: /opt/pyca/cryptography/openssl
-          OPENSSL_STATIC: "1"
-          PKG_CONFIG_PATH: /opt/pyca/cryptography/openssl/lib/pkgconfig
+      # - name: Set up Rust
+      #   run: |
+      #     rustup default stable
+      #     rustup show
+      # - name: Install dependencies
+      #   run: |
+      #     source /tmp/venv/bin/activate
+      #     pip install -c ci-constraints-requirements.txt 'nox[uv]' 'tomli; python_version < "3.11"'
 
-      - name: Run nox tests
-        run: |
-          source /tmp/venv/bin/activate
-          nox --no-install -- --color=yes --wycheproof-root="wycheproof" --x509-limbo-root="x509-limbo"
-        env:
-          NOXSESSION: tests
-          OPENSSL_DIR: /opt/pyca/cryptography/openssl
-          OPENSSL_STATIC: "1"
-          PKG_CONFIG_PATH: /opt/pyca/cryptography/openssl/lib/pkgconfig
+      # - name: Clone test vectors
+      #   timeout-minutes: 2
+      #   uses: ./.github/actions/fetch-vectors
+      # - name: Run nox install
+      #   run: |
+      #     source /tmp/venv/bin/activate
+      #     nox -v --install-only
+      #   env:
+      #     NOXSESSION: tests
+      #     OPENSSL_DIR: /opt/pyca/cryptography/openssl
+      #     OPENSSL_STATIC: "1"
+      #     PKG_CONFIG_PATH: /opt/pyca/cryptography/openssl/lib/pkgconfig
+
+      # - name: Run nox tests
+      #   run: |
+      #     source /tmp/venv/bin/activate
+      #     nox --no-install -- --color=yes --wycheproof-root="wycheproof" --x509-limbo-root="x509-limbo"
+      #   env:
+      #     NOXSESSION: tests
+      #     OPENSSL_DIR: /opt/pyca/cryptography/openssl
+      #     OPENSSL_STATIC: "1"
+      #     PKG_CONFIG_PATH: /opt/pyca/cryptography/openssl/lib/pkgconfig
       
       # - name: Set up dynamic names
       #   id: vars

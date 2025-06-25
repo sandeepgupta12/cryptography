@@ -53,6 +53,11 @@ jobs:
           # OPENSSL_ENABLE_SHA1_SIGNATURES is for CentOS 9 Stream
           
           NOXSESSION: tests
+
+      - run: '/venv/bin/nox --no-install --  --color=yes --wycheproof-root="wycheproof" --x509-limbo-root="x509-limbo"'
+        env:
+          
+          NOXSESSION: tests
           
       # - name: Set up Rust
       #   run: |

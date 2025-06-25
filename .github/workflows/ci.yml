@@ -22,30 +22,32 @@ jobs:
     runs-on: ubuntu-24.04-ppc64le
     container: ghcr.io/sandeepgupta12/cryptography-runner-ubuntu-local:ppc64le
     name: "ppc64le - tests (Python 3.12)"
-    
+    env:
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0
           submodules: recursive
-      # - name: Cache rust and pip
-      #   uses: ./.github/actions/cache
-      #   timeout-minutes: 2
-      #   with:
-      #     key: ubuntu-local
+      - name: Cache rust and pip
+        uses: ./.github/actions/cache
+        timeout-minutes: 2
+        with:
+          key: ubuntu-local
 
       - name: Clone test vectors
         timeout-minutes: 2
         uses: ./.github/actions/fetch-vectors
       # When run in a docker container the home directory doesn't have the same owner as the
       # apparent user so pip refuses to create a cache dir
-      # - name: create pip cache dir
-      #   run: mkdir -p "${HOME}/.cache/pip"
+      - name: create pip cache dir
+        run: mkdir -p "${HOME}/.cache/pip"
       #- run: rustup component add llvm-tools-preview
-      - name: Set up Rust
-        run: |
-          rustup default stable
-          rustup show
+      # - name: Set up Rust
+      #   run: |
+      #     rustup default stable
+      #     rustup show
+
       - run: /venv/bin/python -m pip install -c ci-constraints-requirements.txt 'nox[uv]' 'tomli; python_version < "3.11"'
       - run: '/venv/bin/nox -v --install-only'
         

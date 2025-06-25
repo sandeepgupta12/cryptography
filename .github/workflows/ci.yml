@@ -161,7 +161,7 @@ jobs:
         uses: ./.github/actions/cache
         timeout-minutes: 2
         with:
-          key: ubuntu-focal
+          key: ubuntu-local
 
       - name: Clone test vectors
         timeout-minutes: 2

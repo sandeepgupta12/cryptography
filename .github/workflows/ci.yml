@@ -149,7 +149,7 @@ jobs:
 
   distros:
     runs-on: ${{ matrix.IMAGE.RUNNER }}
-    container: ghcr.io/${{ matrix.IMAGE.IMAGE }}/cryptography-runner-${{ matrix.IMAGE.IMAGE }}
+    container: ghcr.io/${{ matrix.IMAGE.org }}/cryptography-runner-${{ matrix.IMAGE.IMAGE }}
     strategy:
       fail-fast: false
       matrix:

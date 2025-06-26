@@ -20,7 +20,7 @@ jobs:
   
   ppc64le:
     runs-on: ubuntu-24.04-ppc64le
-    container: ghcr.io/sandeepgupta12/cryptography-runner-ubuntu-local:ppc64le
+    container: ghcr.io/sandeepgupta12/cryptography-runner-ubuntu-24.04:ppc64le
     name: "ppc64le - tests (Python 3.12)"
     env:
       RUSTUP_HOME: /root/.rustup

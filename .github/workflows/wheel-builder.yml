@@ -57,7 +57,7 @@ jobs:
     needs: [sdist]
     runs-on: ${{ matrix.MANYLINUX.RUNNER }}
     container:
-      image: ghcr.io/${{ matrix.MANYLINUX.org }}/${{ matrix.MANYLINUX.CONTAINER }}
+      image: ghcr.io/pyca/${{ matrix.MANYLINUX.CONTAINER }}
       volumes:
         - /staticnodehost:/staticnodecontainer:rw,rshared
         - /staticnodehost:/__e/node20:ro,rshared
@@ -70,8 +70,6 @@ jobs:
           - { VERSION: "pp310-pypy310_pp73" }
           - { VERSION: "pp311-pypy311_pp73" }
         MANYLINUX:
-          - { NAME: "manylinux_2_28_ppc64le", CONTAINER: "cryptography-manylinux_2_28:ppc64le", RUNNER: "ubuntu-24.04-ppc64le", org: "sandeepgupta12" }
-          - { NAME: "manylinux2014_ppc64le", CONTAINER: "cryptography-manylinux2014:ppc64le", RUNNER: "ubuntu-24.04-ppc64le", org: "sandeepgupta12" }
           - { NAME: "manylinux2014_x86_64", CONTAINER: "cryptography-manylinux2014:x86_64", RUNNER: "ubuntu-latest", org: "pyca" }
           - { NAME: "manylinux_2_28_x86_64", CONTAINER: "cryptography-manylinux_2_28:x86_64", RUNNER: "ubuntu-latest", org: "pyca"}
           - { NAME: "manylinux_2_34_x86_64", CONTAINER: "cryptography-manylinux_2_34:x86_64", RUNNER: "ubuntu-latest", org: "pyca"}
@@ -83,16 +81,24 @@ jobs:
           - { NAME: "musllinux_1_2_aarch64", CONTAINER: "cryptography-musllinux_1_2:aarch64", RUNNER: "ubuntu-24.04-arm", org: "pyca" }
 
           - { NAME: "manylinux_2_31_armv7l", CONTAINER: "cryptography-manylinux_2_31:armv7l", RUNNER: "ubuntu-24.04-arm", org: "pyca" }
+
+          - { NAME: "manylinux_2_28_ppc64le", CONTAINER: "cryptography-manylinux_2_28:ppc64le", RUNNER: "ubuntu-24.04-ppc64le", org: "sandeepgupta12" }
+          - { NAME: "manylinux2014_ppc64le", CONTAINER: "cryptography-manylinux2014:ppc64le", RUNNER: "ubuntu-24.04-ppc64le", org: "sandeepgupta12" }
+          
         exclude:
           # There are no readily available musllinux PyPy distributions
           - PYTHON: { VERSION: "pp310-pypy310_pp73" }
-            MANYLINUX: { NAME: "musllinux_1_2_x86_64", CONTAINER: "cryptography-musllinux_1_2:x86_64", RUNNER: "ubuntu-latest", org: "pyca"}
+            MANYLINUX: { NAME: "musllinux_1_2_x86_64", CONTAINER: "cryptography-musllinux_1_2:x86_64", RUNNER: "ubuntu-latest"}
           - PYTHON: { VERSION: "pp310-pypy310_pp73" }
-            MANYLINUX: { NAME: "musllinux_1_2_aarch64", CONTAINER: "cryptography-musllinux_1_2:aarch64", RUNNER: "ubuntu-24.04-arm", org: "pyca" }
+            MANYLINUX: { NAME: "musllinux_1_2_aarch64", CONTAINER: "cryptography-musllinux_1_2:aarch64", RUNNER: "ubuntu-24.04-arm" }
+          - PYTHON: { VERSION: "pp310-pypy310_pp73" }
+            MANYLINUX: { NAME: "manylinux_2_28_ppc64le", CONTAINER: "cryptography-manylinux_2_28:ppc64le", RUNNER: "ubuntu-24.04-ppc64le", org: "sandeepgupta12" }
           - PYTHON: { VERSION: "pp311-pypy311_pp73" }
-            MANYLINUX: { NAME: "musllinux_1_2_x86_64", CONTAINER: "cryptography-musllinux_1_2:x86_64", RUNNER: "ubuntu-latest", org: "pyca"}
+            MANYLINUX: { NAME: "musllinux_1_2_x86_64", CONTAINER: "cryptography-musllinux_1_2:x86_64", RUNNER: "ubuntu-latest"}
           - PYTHON: { VERSION: "pp311-pypy311_pp73" }
-            MANYLINUX: { NAME: "musllinux_1_2_aarch64", CONTAINER: "cryptography-musllinux_1_2:aarch64", RUNNER: "ubuntu-24.04-arm", org: "pyca" }
+            MANYLINUX: { NAME: "musllinux_1_2_aarch64", CONTAINER: "cryptography-musllinux_1_2:aarch64", RUNNER: "ubuntu-24.04-arm" }
+          - PYTHON: { VERSION: "pp311-pypy311_pp73" }
+            MANYLINUX: { NAME: "manylinux2014_ppc64le", CONTAINER: "cryptography-manylinux2014:ppc64le", RUNNER: "ubuntu-24.04-ppc64le", org: "sandeepgupta12" }
 
             # We also don't build pypy wheels for anything except the latest manylinux
           - PYTHON: { VERSION: "pp310-pypy310_pp73" }
@@ -170,129 +176,6 @@ jobs:
           name: "cryptography-${{ github.event.inputs.version }}-${{ matrix.MANYLINUX.NAME }}-${{ matrix.PYTHON.VERSION }}-${{ matrix.PYTHON.ABI_VERSION }}"
           path: wheelhouse/
 
-  # ppc64le:
-  #   needs: [sdist]
-  #   runs-on: ubuntu-24.04-ppc64le
-  #   container:
-  #     image: ghcr.io/sandeepgupta12/cryptography-manylinux_2_28:ppc64le
-  #     volumes:
-  #       - /staticnodehost:/staticnodecontainer:rw,rshared
-  #       - /staticnodehost:/__e/node20:ro,rshared
-  #   name: "ppc64le-wheel for python-${{ matrix.PYTHON.VERSION }}"
-  #   strategy:
-  #     matrix:
-  #       PYTHON:
-  #         - VERSION: "cp311-cp311"
-        
-  #   steps:
-  #     # - name: Clean workspace
-  #     #   run: rm -rf openssl
-  #     - name: Ridiculous-er workaround for static node20
-  #       run: |
-  #         cp -R /staticnode/* /staticnodecontainer/
-  #     - name: Get build-requirements.txt from repository
-  #       uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
-  #       with:
-  #         # The tag to build or the tag received by the tag event
-  #         ref: ${{ github.event.inputs.version || github.ref }}
-  #         persist-credentials: false
-  #         sparse-checkout: |
-  #           ${{ env.BUILD_REQUIREMENTS_PATH }}
-  #           ${{ env.UV_REQUIREMENTS_PATH }}
-  #         sparse-checkout-cone-mode: false
-  #     # - name: Install dependencies
-  #     #   run: |
-  #     #     yum update -y
-  #     #     yum install -y curl gcc gcc-c++ make openssl-devel libffi-devel python3-devel \
-  #     #                    pkgconfig cmake git unzip perl perl-IPC-Cmd
-  #     # - name: Install Rust
-  #     #   run: |
-  #     #     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y
-  #     #     echo 'source $HOME/.cargo/env' >> ~/.bashrc
-  #     #     . $HOME/.cargo/env
-  #     #     echo PATH="/root/.cargo/bin:${PATH}"
-  #     # - name: Install setup tools
-  #     #   run: |
-  #     #     python3 -m pip install --upgrade pip
-  #     #     python3 -m pip install -U setuptools wheel cffi pycparser
-          
-  #     # - name: Install OpenSSL
-  #     #   run: |
-  #     #     git clone https://github.com/openssl/openssl
-  #     #     cd openssl
-  #     #     git checkout openssl-3.5.0
-  #     #     sed -i "s/^SHLIB_VERSION=.*/SHLIB_VERSION=100/" VERSION.dat
-  #     #     ./config shared no-ssl2 no-ssl3 -fPIC --prefix="/openssl"
-  #     #     make depend
-  #     #     make -j"$(nproc)"
-  #     #     make install_sw install_ssldirs
-  #     #     cd ..
-
-  #     # - name: Set LD_LIBRARY_PATH
-  #     #   run: echo "export LD_LIBRARY_PATH=/openssl/lib:$LD_LIBRARY_PATH" >> ~/.bashrc
-  #     #   shell: bash
-  #     # - name: Create directory fow wheel
-  #     #   run: |
-  #     #     rm -rf tmpwheelhouse
-  #     #     mkdir tmpwheelhouse
-  #     #     rm -rf wheelhouse
-  #     #     mkdir wheelhouse
-  #     # - name: Build Wheel
-  #     #   run: |
-  #     #     OPENSSL_DIR="/openssl" PATH="$HOME/.cargo/bin:$PATH" pip wheel --no-cache-dir --no-binary cryptography cryptography -w tmpwheelhouse/
-      
-  #     - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-  #       with:
-  #         name: cryptography-sdist
-  #     - run: mkdir tmpwheelhouse
-  #     - name: Build the wheel
-  #       run: |
-  #         if [ -n "${{ matrix.PYTHON.ABI_VERSION }}" ]; then
-  #             PY_LIMITED_API="--config-settings=build-args=--features=pyo3/abi3-${{ matrix.PYTHON.ABI_VERSION }}"
-  #         fi
-
-  #         OPENSSL_DIR="/opt/pyca/cryptography/openssl" \
-  #             OPENSSL_STATIC=1 \
-  #             uv build --python=/opt/python/${{ matrix.PYTHON.VERSION }}/bin/python --wheel --require-hashes --build-constraint=$BUILD_REQUIREMENTS_PATH $PY_LIMITED_API cryptography*.tar.gz -o tmpwheelhouse/
-  #       env:
-  #         RUSTUP_HOME: /root/.rustup
-  #     - run: auditwheel repair --plat ${{ matrix.MANYLINUX.NAME }} tmpwheelhouse/cryptography*.whl -w wheelhouse/
-  #     - run: unzip wheelhouse/*.whl -d execstack.check
-  #     - run: |
-  #         results=$(readelf -lW execstack.check/cryptography/hazmat/bindings/*.so)
-  #         count=$(echo "$results" | grep -c 'GNU_STACK.*[R ][W ]E' || true)
-  #         if [ "$count" -ne 0 ]; then
-  #           exit 1
-  #         else
-  #           exit 0
-  #         fi
-
-  #     - run: uv venv --python=/opt/python/${{ matrix.PYTHON.VERSION }}/bin/python
-  #     - run: uv pip install --require-hashes -r $BUILD_REQUIREMENTS_PATH
-  #     - run: uv pip install cryptography --no-index -f wheelhouse/
-  #     - run: |
-  #         echo "from cryptography.hazmat.backends.openssl.backend import backend;print('Loaded: ' + backend.openssl_version_text());print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))" | uv run -
-
-  #     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-  #       with:
-  #         name: "cryptography-${{ github.event.inputs.version }}-${{ matrix.MANYLINUX.NAME }}-${{ matrix.PYTHON.VERSION }}-${{ matrix.PYTHON.ABI_VERSION }}"
-  #         path: wheelhouse/
-  #     # - name: Move Cryptography Wheel
-  #     #   run: cp -f tmpwheelhouse/cryptography*.whl wheelhouse/
-  #     # - run: pip install --require-hashes -r $BUILD_REQUIREMENTS_PATH
-  #     # - name: Install wheel
-  #     #   run: pip install cryptography --no-index -f wheelhouse/
-        
-  #     # - name: Test wheel
-  #     #   run: |
-  #     #     export LD_LIBRARY_PATH="/openssl/lib:$LD_LIBRARY_PATH"
-  #     #     python -c "from cryptography.hazmat.backends.openssl.backend import backend; print('Loaded: ' + backend.openssl_version_text()); print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"
-
-  #     # - uses: actions/upload-artifact@v4.4.0
-  #     #   with:
-  #     #     name: "cryptography-ppc64le"
-  #     #     path: wheelhouse/
-          
   macos:
     needs: [sdist]
     runs-on: macos-13

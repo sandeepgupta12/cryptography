@@ -57,7 +57,7 @@ jobs:
     needs: [sdist]
     runs-on: ${{ matrix.MANYLINUX.RUNNER }}
     container:
-      image: ghcr.io/pyca/${{ matrix.MANYLINUX.CONTAINER }}
+      image: ghcr.io/sandeepgupta12/${{ matrix.MANYLINUX.CONTAINER }}
       volumes:
         - /staticnodehost:/staticnodecontainer:rw,rshared
         - /staticnodehost:/__e/node20:ro,rshared

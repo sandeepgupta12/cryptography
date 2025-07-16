@@ -3,7 +3,7 @@ on:
   pull_request: {}
   push:
     branches:
-      - main
+      - temp-ppc64le-support-1
       - '*.*.x'
 
 permissions:
